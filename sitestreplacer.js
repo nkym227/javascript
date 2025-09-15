@@ -493,6 +493,8 @@ class SiTestReplacer {
         <strong>${elementCount}個</strong>の差し替え対象を検出しました<br><br>
         🔸 <strong>オレンジ枠:</strong> 差し替え予定要素<br>
         🔸 <strong>赤枠:</strong> 削除予定要素<br>
+        🔸 <strong>緑枠:</strong> 差し替え済み要素<br>
+        🔸 <strong>右上ボタン:</strong> 実行/元に戻す<br>
         🔸 <strong>要素クリック:</strong> 詳細表示<br>
         🔸 <strong>オーバーレイクリック:</strong> HTMLプレビュー
       </div>
