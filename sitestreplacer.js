@@ -6,8 +6,8 @@
 class SiTestReplacer {
   constructor(options = {}) {
     this.options = {
-      // デフォルト設定
-      attributeName: 'data-sitest-type',
+      // 基本設定
+      attributeName: options.attributeName || 'data-sitest-type',
       baseUrl: options.baseUrl || '', // HTMLファイルのベースURL
       waitTime: options.waitTime || 500, // 追加待機時間（ミリ秒）
       debug: options.debug || false,
@@ -17,9 +17,20 @@ class SiTestReplacer {
       previewPosition: options.previewPosition || 'top-right', // top-left, top-right, center, bottom-left, bottom-right
       
       // CSS管理設定
-      cssFile: options.cssFile || 'sitest-styles.css', // CSSファイル名
+      cssFile: options.cssFile || 'sitest-style.css', // CSSファイル名
       cssUrl: options.cssUrl || '', // CSSファイルのURL（baseUrlと組み合わせ）
       autoInjectCSS: options.autoInjectCSS !== false, // CSS自動挿入（デフォルトtrue）
+      
+      // JavaScript管理設定
+      scriptFile: options.scriptFile || 'sitest-script.js', // サイトスクリプトファイル名
+      scriptUrl: options.scriptUrl || '', // サイトスクリプトファイルのURL（baseUrlと組み合わせ）
+      autoExecuteScript: options.autoExecuteScript !== false, // サイトスクリプト自動実行（デフォルトtrue）
+      executeAfterAllReplacements: options.executeAfterAllReplacements !== false, // 全差し替え完了後実行（デフォルトtrue）
+      
+      // JavaScript実行設定
+      executeScripts: options.executeScripts !== false, // デフォルト: true（実行する）
+      scriptTimeout: options.scriptTimeout || 5000,    // スクリプト実行タイムアウト（ms）
+      
       
       ...options
     };
@@ -36,6 +47,11 @@ class SiTestReplacer {
     this.sideMenu = null;
     this.sideMenuCollapsed = false;
     this.elementGroups = new Map(); // 要素グループ管理
+
+    // プレビューWindow管理用の新しいプロパティ
+    this.activePreviewWindow = null; // 現在開いているプレビューWindow
+    this.activePreviewButton = null; // アクティブなプレビューボタン
+    this.previewWindowCheckInterval = null; // Window状態チェック用の間隔ID
 
     // プレビューモード用のスタイルを追加
     if (this.options.previewMode) {
@@ -63,20 +79,102 @@ class SiTestReplacer {
     style.textContent = `
       /* === 要素ハイライト === */
       .sitest-preview-highlight {
-        position: relative !important;
+        /* 既存のアウトライン */
         outline: 3px dashed #ff6b35 !important;
-        background-color: rgba(255, 107, 53, 0.1) !important;
         animation: sitest-pulse 2s infinite !important;
+        
+        /* position強制設定を削除 - createEnhancedHighlightで個別制御 */
+      }
+      
+      /* position個別制御クラス */
+      .sitest-preview-highlight.position-static {
+        position: relative !important; /* staticの場合のみrelative */
+      }
+      
+      .sitest-preview-highlight.position-absolute {
+        /* position: absolute のまま維持 */
+      }
+      
+      .sitest-preview-highlight.position-fixed {
+        /* position: fixed のまま維持 */
+      }
+      
+      .sitest-preview-highlight.position-relative {
+        /* position: relative のまま維持 */
+      }
+      
+      .sitest-preview-highlight.position-sticky {
+        /* position: sticky のまま維持 */
+      }
+      
+      .sitest-overlay-highlight {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        background: rgba(255, 107, 53, 0.8) !important;
+        border: 2px solid #ff6b35 !important;
+        pointer-events: none !important;
+        z-index: 999999 !important;
+        animation: sitest-overlay-pulse 2s infinite !important;
+      }
+      
+      .sitest-overlay-highlight.executed {
+        background: rgba(46, 204, 113, 0.2) !important;
+        border-color: #2ecc71 !important;
+      }
+      
+      .sitest-overlay-highlight.remove-target {
+        background: rgba(231, 76, 60, 0.2) !important;
+        border-color: #e74c3c !important;
+      }
+      
+      @keyframes sitest-overlay-pulse {
+        0%, 100% { opacity: 0.8; }
+        50% { opacity: 0.4; }
       }
       
       .sitest-preview-highlight.remove-target {
         outline-color: #e74c3c !important;
-        background-color: rgba(231, 76, 60, 0.1) !important;
       }
       
       .sitest-preview-replaced {
         outline: 3px solid #27ae60 !important;
-        background-color: rgba(39, 174, 96, 0.1) !important;
+      }
+
+      /* === ハイライトオーバーレイ === */
+      .sitest-highlight-overlay {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        background-color: rgba(255, 107, 53, 0.15) !important;
+        border: 2px solid #ff6b35 !important;
+        pointer-events: none !important;
+        z-index: 9999 !important;
+        animation: sitest-overlay-pulse 2s infinite !important;
+      }
+      
+      .sitest-highlight-overlay.remove-target {
+        background-color: rgba(231, 76, 60, 0.15) !important;
+        border-color: #e74c3c !important;
+      }
+      
+      .sitest-highlight-overlay.replaced {
+        background-color: rgba(39, 174, 96, 0.15) !important;
+        border-color: #27ae60 !important;
+        animation: none !important;
+      }
+      
+      @keyframes sitest-overlay-pulse {
+        0%, 100% { 
+          opacity: 0.3;
+        }
+        50% { 
+          opacity: 0.6;
+        }
       }
       
       @keyframes sitest-pulse {
@@ -94,13 +192,14 @@ class SiTestReplacer {
         background: white !important;
         border-left: 1px solid #e0e0e0 !important;
         box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1) !important;
-        z-index: 10000 !important;
+        z-index: 999999 !important;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         transform: translateX(0) !important;
         transition: transform 0.3s ease !important;
         overflow: hidden !important;
         display: flex !important;
         flex-direction: column !important;
+        line-height: 1.5 !important;
       }
       
       .sitest-side-menu.collapsed {
@@ -110,7 +209,7 @@ class SiTestReplacer {
       /* === ヘッダー === */
       .sitest-menu-header {
         background: #f8f9fa !important;
-        padding: 15px 20px !important;
+        padding: 20px 15px !important;
         border-bottom: 1px solid #e0e0e0 !important;
         display: flex !important;
         align-items: center !important;
@@ -119,10 +218,12 @@ class SiTestReplacer {
       }
       
       .sitest-menu-title {
+        padding-left: 20px !important;
         font-size: 16px !important;
         font-weight: 600 !important;
         color: #333 !important;
         margin: 0 !important;
+        text-align: left;
         flex: 1 !important;
       }
       
@@ -137,7 +238,7 @@ class SiTestReplacer {
         color: white !important;
         border: none !important;
         border-radius: 4px !important;
-        width: 28px !important;
+        width: 64px !important;
         height: 28px !important;
         cursor: pointer !important;
         display: flex !important;
@@ -181,7 +282,12 @@ class SiTestReplacer {
       /* === 要素グループ === */
       .sitest-element-group {
         border-bottom: 1px solid #f0f0f0 !important;
-        padding: 12px 15px !important;
+        padding: 18px 15px !important;
+      }
+
+      .sitest-element-group:has(.sitest-control-btn.execute[disabled]) .sitest-control-btn.navigate{
+        pointer-events: none;
+        opacity: 0.4;
       }
       
       .sitest-element-info {
@@ -190,8 +296,8 @@ class SiTestReplacer {
       
       .sitest-element-selector {
         font-family: 'Courier New', monospace !important;
-        font-size: 11px !important;
-        color: #666 !important;
+        font-size: 12px !important;
+        color: #333 !important;
         background: #f8f9fa !important;
         padding: 4px 6px !important;
         border-radius: 3px !important;
@@ -223,7 +329,8 @@ class SiTestReplacer {
         border-radius: 4px !important;
         background: white !important;
         color: #333 !important;
-        font-size: 10px !important;
+        font-size: 12px !important;
+        line-height:1;
         cursor: pointer !important;
         transition: all 0.2s ease !important;
         text-align: center !important;
@@ -352,7 +459,7 @@ class SiTestReplacer {
         justify-content: center !important;
         font-size: 12px !important;
         font-weight: bold !important;
-        z-index: 10001 !important;
+        z-index: 1000000 !important;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2) !important;
         transition: all 0.3s ease !important;
         transform: translateX(0) !important;
@@ -375,6 +482,32 @@ class SiTestReplacer {
         transition: all 0.3s ease !important;
       }
 
+      /* === アクティブプレビューボタン === */
+      .sitest-active-preview-button,
+      .sitest-batch-btn.sitest-active-preview-button,
+      .sitest-control-btn.sitest-active-preview-button {
+        background: #28a745 !important;
+        background-color: #28a745 !important;
+        color: white !important;
+        font-weight: bold !important;
+        box-shadow: 0 0 8px rgba(40, 167, 69, 0.6) !important;
+        border-color: #28a745 !important;
+        border: 1px solid #28a745 !important;
+        transform: scale(1.02) !important;
+        transition: all 0.2s ease !important;
+        opacity: 1 !important;
+      }
+      
+      .sitest-active-preview-button:hover,
+      .sitest-batch-btn.sitest-active-preview-button:hover,
+      .sitest-control-btn.sitest-active-preview-button:hover {
+        background: #218838 !important;
+        background-color: #218838 !important;
+        box-shadow: 0 0 12px rgba(40, 167, 69, 0.8) !important;
+        border-color: #218838 !important;
+        border: 1px solid #218838 !important;
+      }
+
       /* === 統計情報 === */
       .sitest-stats {
         font-size: 11px !important;
@@ -384,7 +517,7 @@ class SiTestReplacer {
         border-top: 1px solid #f0f0f0 !important;
       }
     `;
-    document.head.appendChild(style);
+    document.head.append(style);
     this.log('New UI Preview styles added');
   }
 
@@ -404,11 +537,10 @@ class SiTestReplacer {
     const header = document.createElement('div');
     header.className = 'sitest-menu-header';
     header.innerHTML = `
-      <h3 class="sitest-menu-title">🎯 SiTest Controller</h3>
       <div class="sitest-header-controls">
-        <button class="sitest-css-btn" title="CSS Preview">🎨</button>
         <button class="sitest-toggle-btn" title="メニューを折りたたむ">✕</button>
       </div>
+      <h3 class="sitest-menu-title">SiTest Controller</h3>
     `;
     
     // コンテンツエリア
@@ -429,15 +561,19 @@ class SiTestReplacer {
         <button class="sitest-batch-btn load-css">🎨 CSS読込</button>
         <button class="sitest-batch-btn css-preview">📄 CSS表示</button>
       </div>
+      <div class="sitest-batch-controls">
+        <button class="sitest-batch-btn execute-script">⚡ JS実行</button>
+        <button class="sitest-batch-btn script-preview">📄 JS表示</button>
+      </div>
       <div class="sitest-stats">
         <span id="sitest-stats-text">要素を検索中...</span>
       </div>
     `;
     
     // 構成
-    this.sideMenu.appendChild(header);
-    this.sideMenu.appendChild(content);
-    this.sideMenu.appendChild(batchOps);
+    this.sideMenu.append(header);
+    this.sideMenu.append(content);
+    this.sideMenu.append(batchOps);
     
     // イベントリスナー
     this.setupSideMenuEvents(header, batchOps);
@@ -445,7 +581,7 @@ class SiTestReplacer {
     // 折りたたみボタン（メニュー外）
     this.createCollapseButton();
     
-    document.body.appendChild(this.sideMenu);
+    document.body.append(this.sideMenu);
     this.log('Side menu created');
     
     return this.sideMenu;
@@ -464,7 +600,7 @@ class SiTestReplacer {
       this.toggleSideMenu();
     });
     
-    document.body.appendChild(collapseBtn);
+    document.body.append(collapseBtn);
     this.collapseBtn = collapseBtn;
     
     return collapseBtn;
@@ -476,54 +612,119 @@ class SiTestReplacer {
   setupSideMenuEvents(header, batchOps) {
     // ヘッダーの折りたたみボタン
     const toggleBtn = header.querySelector('.sitest-toggle-btn');
-    toggleBtn.addEventListener('click', () => {
-      this.toggleSideMenu();
-    });
-    
-    // ヘッダーのCSSボタン
-    const cssBtn = header.querySelector('.sitest-css-btn');
-    cssBtn.addEventListener('click', () => {
-      this.showCSSPreview();
-    });
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        this.toggleSideMenu();
+      });
+    }
     
     // 一括操作ボタン
     const executeAllBtn = batchOps.querySelector('.execute-all');
     const revertAllBtn = batchOps.querySelector('.revert-all');
     const resetBtn = batchOps.querySelector('.reset');
     
-    executeAllBtn.addEventListener('click', () => {
-      this.executeAllOperations();
-    });
+    if (executeAllBtn) {
+      executeAllBtn.addEventListener('click', () => {
+        this.executeAllOperations();
+      });
+    }
     
-    revertAllBtn.addEventListener('click', () => {
-      this.revertAllOperations();
-    });
+    if (revertAllBtn) {
+      revertAllBtn.addEventListener('click', () => {
+        this.revertAllOperations();
+      });
+    }
     
-    resetBtn.addEventListener('click', () => {
-      this.resetAllOperations();
-    });
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        this.resetAllOperations();
+      });
+    }
     
     // CSS関連ボタン
     const loadCssBtn = batchOps.querySelector('.load-css');
     const cssPreviewBtn = batchOps.querySelector('.css-preview');
     
-    loadCssBtn.addEventListener('click', async () => {
-      loadCssBtn.disabled = true;
-      loadCssBtn.textContent = '読込中...';
-      
-      const css = await this.loadAndInjectCSS();
-      
-      loadCssBtn.disabled = false;
-      loadCssBtn.textContent = css ? '✅ 完了' : '❌ 失敗';
-      
-      setTimeout(() => {
-        loadCssBtn.textContent = '🎨 CSS読込';
-      }, 2000);
-    });
+    if (loadCssBtn) {
+      loadCssBtn.addEventListener('click', async () => {
+        loadCssBtn.disabled = true;
+        loadCssBtn.textContent = '読込中...';
+        
+        const css = await this.loadAndInjectCSS();
+        
+        loadCssBtn.disabled = false;
+        loadCssBtn.textContent = css ? '✅ 完了' : '❌ 失敗';
+        
+        setTimeout(() => {
+          loadCssBtn.textContent = '🎨 CSS読込';
+        }, 2000);
+      });
+    }
     
-    cssPreviewBtn.addEventListener('click', () => {
-      this.showCSSPreview();
-    });
+    if (cssPreviewBtn) {
+      cssPreviewBtn.addEventListener('click', () => {
+        this.log('CSS Preview button clicked!', cssPreviewBtn);
+        
+        // 既存のアクティブボタンがある場合は元に戻す
+        this.resetActivePreviewButton();
+        
+        // 現在のボタンをアクティブ状態に設定
+        this.setActivePreviewButton(cssPreviewBtn, '📄 CSS表示');
+        
+        this.log('CSS Preview button set to active, style check:', {
+          backgroundColor: cssPreviewBtn.style.backgroundColor,
+          color: cssPreviewBtn.style.color,
+          textContent: cssPreviewBtn.textContent,
+          className: cssPreviewBtn.className
+        });
+        
+        // プレビューを表示
+        this.showCSSPreview();
+      });
+    }
+    
+    // JavaScript関連ボタン
+    const executeScriptBtn = batchOps.querySelector('.execute-script');
+    const scriptPreviewBtn = batchOps.querySelector('.script-preview');
+    
+    if (executeScriptBtn) {
+      executeScriptBtn.addEventListener('click', async () => {
+        executeScriptBtn.disabled = true;
+        executeScriptBtn.textContent = '実行中...';
+        
+        const result = await this.executeScriptManually();
+        
+        executeScriptBtn.disabled = false;
+        executeScriptBtn.textContent = result ? '✅ 完了' : '❌ 失敗';
+        
+        setTimeout(() => {
+          executeScriptBtn.textContent = '⚡ JS実行';
+        }, 2000);
+      });
+    }
+    
+    // JSプレビューボタン
+    if (scriptPreviewBtn) {
+      scriptPreviewBtn.addEventListener('click', () => {
+        this.log('JS Preview button clicked!', scriptPreviewBtn);
+        
+        // 既存のアクティブボタンがある場合は元に戻す
+        this.resetActivePreviewButton();
+        
+        // 現在のボタンをアクティブ状態に設定
+        this.setActivePreviewButton(scriptPreviewBtn, '📄 JS表示');
+        
+        this.log('JS Preview button set to active, style check:', {
+          backgroundColor: scriptPreviewBtn.style.backgroundColor,
+          color: scriptPreviewBtn.style.color,
+          textContent: scriptPreviewBtn.textContent,
+          className: scriptPreviewBtn.className
+        });
+        
+        // プレビューを表示
+        this.showScriptPreview();
+      });
+    }
   }
 
   /**
@@ -571,18 +772,17 @@ class SiTestReplacer {
         <div class="sitest-element-operations">${operations.length}個の操作: ${operationsText}</div>
       </div>
       <div class="sitest-control-group">
-        <button class="sitest-control-btn execute" title="操作を実行">⚡</button>
-        <button class="sitest-control-btn navigate" title="要素へ移動">📍</button>
-        <button class="sitest-control-btn preview" title="Code Preview">💻</button>
-        <button class="sitest-control-btn css-preview" title="CSS Preview">🎨</button>
-        <button class="sitest-control-btn revert" title="元に戻す" disabled>↶</button>
+        <button class="sitest-control-btn execute" title="操作を実行">実行</button>
+        <button class="sitest-control-btn revert" title="元に戻す" disabled style="display:none;">↶元に戻す</button>
+        <button class="sitest-control-btn navigate" title="要素へ移動">要素へ移動</button>
+        <button class="sitest-control-btn preview" title="Code Preview">💻コード</button>
       </div>
     `;
     
     // イベントリスナーを設定
     this.setupElementGroupEvents(group, element, operations, elementId);
     
-    content.appendChild(group);
+    content.append(group);
     this.elementGroups.set(elementId, { group, element, operations });
     
     this.updateStats();
@@ -596,71 +796,135 @@ class SiTestReplacer {
     const executeBtn = group.querySelector('.execute');
     const navigateBtn = group.querySelector('.navigate');
     const previewBtn = group.querySelector('.preview');
-    const cssPreviewBtn = group.querySelector('.css-preview');
     const revertBtn = group.querySelector('.revert');
     
-    // 実行ボタン
-    executeBtn.addEventListener('click', async () => {
-      try {
-        executeBtn.disabled = true;
-        executeBtn.textContent = '⏳ 実行中...';
-        
-        await this.executeElementOperations(element, operations, elementId);
-        
-        // UIを更新
-        executeBtn.style.display = 'none';
-        revertBtn.disabled = false;
-        revertBtn.style.display = 'inline-block';
-        
-      } catch (error) {
-        this.error('Failed to execute from side menu:', error);
-        executeBtn.textContent = '⚠ エラー';
-        executeBtn.disabled = false;
-      }
+    this.log('Setting up element group events:', {
+      group,
+      executeBtn,
+      navigateBtn,
+      previewBtn,
+      revertBtn,
+      elementId
     });
+    
+    // 実行ボタン
+    if (executeBtn) {
+      executeBtn.addEventListener('click', async () => {
+        try {
+          executeBtn.disabled = true;
+          executeBtn.textContent = '⏳ 実行中...';
+          
+          await this.executeElementOperations(element, operations, elementId);
+          
+          // UIを更新
+          executeBtn.style.display = 'none';
+          revertBtn.disabled = false;
+          revertBtn.style.display = 'inline-block';
+          
+        } catch (error) {
+          this.error('Failed to execute from side menu:', error);
+          executeBtn.textContent = '⚠ エラー';
+          executeBtn.disabled = false;
+        }
+      });
+    }
     
     // 移動ボタン
-    navigateBtn.addEventListener('click', () => {
-      this.navigateToElement(element);
-    });
+    if (navigateBtn) {
+      navigateBtn.addEventListener('click', () => {
+        this.navigateToElement(elementId);
+      });
+    }
     
     // プレビューボタン
-    previewBtn.addEventListener('click', () => {
-      this.showOperationsPreview(operations);
-    });
-    
-    // CSS プレビューボタン
-    cssPreviewBtn.addEventListener('click', () => {
-      this.showCSSPreview();
-    });
+    if (previewBtn) {
+      previewBtn.addEventListener('click', () => {
+        this.log('Element preview button clicked!', previewBtn);
+        
+        // 既存のアクティブボタンがある場合は元に戻す
+        this.resetActivePreviewButton();
+        
+        // 現在のボタンをアクティブ状態に設定
+        this.setActivePreviewButton(previewBtn, '💻コード');
+        
+        this.log('Element preview button set to active, style check:', {
+          backgroundColor: previewBtn.style.backgroundColor,
+          color: previewBtn.style.color,
+          textContent: previewBtn.textContent,
+          className: previewBtn.className
+        });
+        
+        // プレビューを表示
+        this.showOperationsPreview(operations);
+      });
+    } else {
+      this.error('Preview button not found in group:', group);
+    }
     
     // 元に戻すボタン
-    revertBtn.addEventListener('click', () => {
-      try {
-        this.revertElement(elementId, null);
-        
-        // UIを更新
-        executeBtn.style.display = 'inline-block';
-        executeBtn.disabled = false;
-        executeBtn.textContent = '⚡ 実行';
-        revertBtn.disabled = true;
-        revertBtn.style.display = 'none';
-        
-      } catch (error) {
-        this.error('Failed to revert from side menu:', error);
-      }
-    });
+    if (revertBtn) {
+      revertBtn.addEventListener('click', () => {
+        try {
+          this.revertElement(elementId, null);
+          
+          // UIを更新
+          executeBtn.style.display = 'inline-block';
+          executeBtn.disabled = false;
+          executeBtn.textContent = '実行';
+          revertBtn.disabled = true;
+          revertBtn.style.display = 'none';
+          
+        } catch (error) {
+          this.error('Failed to revert from side menu:', error);
+        }
+      });
+    }
   }
 
   /**
-   * 要素への移動（スムーズスクロール + ハイライト）
+   * 要素への移動（スムーズスクロール + ハイライト）- 修正版
    */
-  navigateToElement(element) {
+  navigateToElement(elementId) {
+    // 現在の有効な要素を取得（差し替え後・復元後でも正しく取得）
+    let element = this.getCurrentValidElement(elementId, null);
+    
+    // 要素が見つからない場合は、data-sitest-id属性で再検索
     if (!element || !element.parentNode) {
-      this.error('Element not found or not in DOM');
+      element = document.querySelector(`[data-sitest-id="${elementId}"]`);
+    }
+    
+    // それでも見つからない場合は、replacedElementsから検索
+    if (!element && this.replacedElements.has(elementId)) {
+      element = this.replacedElements.get(elementId);
+    }
+    
+    // 最後の手段：originalElementsから検索
+    if (!element && this.originalElements.has(elementId)) {
+      element = this.originalElements.get(elementId);
+    }
+    
+    if (!element || !element.parentNode) {
+      this.error('Element not found or not in DOM for navigation');
+      
+      // フォールバック：data-sitest-id属性で検索
+      const fallbackElement = document.querySelector(`[data-sitest-id="${elementId}"]`);
+      if (fallbackElement && fallbackElement.parentNode) {
+        this.navigateToValidElement(fallbackElement);
+        return;
+      }
+      
+      alert('要素が見つかりません。ページをリロードしてください。');
       return;
     }
     
+    this.navigateToValidElement(element);
+    this.log('Navigated to element:', element);
+  }
+
+  /**
+   * 有効な要素への移動処理
+   */
+  navigateToValidElement(element) {
     // 既存のハイライトを削除
     document.querySelectorAll('.sitest-scroll-highlight').forEach(el => {
       el.classList.remove('sitest-scroll-highlight');
@@ -676,12 +940,10 @@ class SiTestReplacer {
       inline: 'nearest'
     });
     
-    // 3秒後にハイライトを削除
+    // 5秒後にハイライトを削除
     setTimeout(() => {
       element.classList.remove('sitest-scroll-highlight');
-    }, 3000);
-    
-    this.log('Navigated to element:', element);
+    }, 5000);
   }
 
   /**
@@ -689,8 +951,18 @@ class SiTestReplacer {
    */
   generateCleanSelector(element) {
     const tagName = element.tagName.toLowerCase();
+    
+    // 除外するクラス名のパターン
+    const excludePatterns = [
+      'sitest-',           // SiTest関連
+      'position-',         // position制御用
+      'remove-target',     // 削除対象マーク
+      'sitest-preview',    // プレビュー関連
+      'sitest-scroll',     // スクロール関連
+    ];
+    
     const cleanClasses = Array.from(element.classList)
-      .filter(cls => !cls.startsWith('sitest-'))
+      .filter(cls => !excludePatterns.some(pattern => cls.includes(pattern)))
       .slice(0, 3) // 最大3つまで
       .join('.');
     
@@ -720,7 +992,15 @@ class SiTestReplacer {
    * 操作のプレビューを表示（改良版 - HTMLソース表示 + コピー機能）
    */
   async showOperationsPreview(operations) {
-    const previewWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
+    const previewWindow = this.openManagedPreviewWindow('', 'width=900,height=700,scrollbars=yes,resizable=yes', () => {
+      // Window閉じた時のコールバック - ボタン状態を元に戻す
+      this.resetActivePreviewButton();
+    });
+
+    if (!previewWindow) {
+      alert('プレビューWindowの作成に失敗しました');
+      return;
+    }
     
     // HTMLソースを並行取得
     const htmlSources = await Promise.all(
@@ -910,7 +1190,7 @@ function copyToClipboard(textareaId) {
   }
 
   /**
-   * 要素の操作を実行（サイドメニューから）- 修正版
+   * 要素の操作を実行（サイドメニューから）
    */
   async executeElementOperations(element, operations, elementId) {
     if (!this.options.previewMode) {
@@ -974,7 +1254,7 @@ function copyToClipboard(textareaId) {
   }
 
   /**
-   * 要素グループの参照を更新（元に戻した後の参照修正）
+   * 要素グループの参照を更新
    */
   updateElementGroupReference(elementId) {
     const groupData = this.elementGroups.get(elementId);
@@ -1013,6 +1293,7 @@ function copyToClipboard(textareaId) {
    */
   async executeAllOperations() {
     const groups = Array.from(this.elementGroups.values());
+    let executedCount = 0;
     
     for (const { element, operations, group } of groups) {
       const elementId = group.dataset.elementId;
@@ -1022,11 +1303,29 @@ function copyToClipboard(textareaId) {
         try {
           executeBtn.click();
           await this.delay(100); // 少し待機
+          executedCount++;
         } catch (error) {
           this.error('Failed to execute operation for element:', elementId, error);
         }
       }
     }
+    
+    // 全差し替え完了後にサイトスクリプトを実行
+    if (executedCount > 0 && this.options.executeAfterAllReplacements) {
+      this.log(`All ${executedCount} operations completed. Executing site script...`);
+      
+      if (this.options.previewMode) {
+        // プレビューモードでは確認ダイアログ
+        if (confirm('全ての差し替えが完了しました。script.jsを実行しますか？')) {
+          await this.loadAndExecuteScript();
+        }
+      } else {
+        // 通常モードでは自動実行
+        await this.loadAndExecuteScript();
+      }
+    }
+    
+    this.updateStats();
   }
 
   /**
@@ -1172,6 +1471,89 @@ function copyToClipboard(textareaId) {
   }
 
   /**
+   * サイトスクリプトファイルを取得
+   */
+  async fetchScript() {
+    const scriptUrl = this.options.scriptUrl || 
+      (this.options.baseUrl ? 
+        `${this.options.baseUrl}${this.options.scriptFile}` : 
+        this.options.scriptFile);
+    
+    try {
+      this.log(`Fetching site script: ${scriptUrl}`);
+      const response = await fetch(scriptUrl);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const scriptContent = await response.text();
+      this.log(`Site script loaded successfully: ${scriptContent.length} characters`);
+      return scriptContent;
+    } catch (error) {
+      this.error(`Failed to fetch site script: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * サイトスクリプトを実行
+   */
+  executeScript(scriptContent) {
+    try {
+      this.log('Executing site script...');
+      
+      // 新しいscriptタグを作成して実行
+      const scriptTag = document.createElement('script');
+      scriptTag.textContent = scriptContent;
+      
+      // headに追加して実行
+      document.head.appendChild(scriptTag);
+      
+      // 実行後は削除（メモリクリーンアップ）
+      document.head.removeChild(scriptTag);
+      
+      this.log('Site script executed successfully');
+      return true;
+    } catch (error) {
+      this.error('Failed to execute site script:', error);
+      return false;
+    }
+  }
+
+  /**
+   * サイトスクリプトを手動で実行
+   */
+  async executeScriptManually() {
+    if (!this.options.scriptFile) {
+      this.error('No site script file specified');
+      return false;
+    }
+    
+    const scriptContent = await this.fetchScript();
+    if (scriptContent) {
+      return this.executeScript(scriptContent);
+    }
+    return false;
+  }
+
+  /**
+   * サイトスクリプトを読み込んで実行
+   */
+  async loadAndExecuteScript() {
+    if (!this.options.autoExecuteScript) {
+      this.log('Site script auto-execution is disabled');
+      return false;
+    }
+    
+    const scriptContent = await this.fetchScript();
+    if (scriptContent) {
+      return this.executeScript(scriptContent);
+    }
+    return false;
+  }
+
+  /**
    * CSSをheadに挿入
    */
   injectCSS(css) {
@@ -1189,7 +1571,7 @@ function copyToClipboard(textareaId) {
       style.textContent = css;
 
       // headの最後に追加
-      document.head.appendChild(style);
+      document.head.append(style);
       
       this.log('CSS injected successfully');
       return true;
@@ -1233,7 +1615,15 @@ function copyToClipboard(textareaId) {
         return;
       }
 
-      const previewWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+      const previewWindow = this.openManagedPreviewWindow('', 'width=800,height=600,scrollbars=yes,resizable=yes', () => {
+        // Window閉じた時のコールバック - ボタン状態を元に戻す
+        this.resetActivePreviewButton();
+      });
+
+      if (!previewWindow) {
+        alert('プレビューWindowの作成に失敗しました');
+        return;
+      }
 
       previewWindow.document.write(`
 <!DOCTYPE html>
@@ -1340,7 +1730,9 @@ function copyCSS() {
     <button id="copy-btn" class="copy-btn" onclick="copyCSS()">📋 CSS をコピー</button>
   </div>
   
-  <textarea id="css-content" class="css-textarea" readonly onclick="this.select()">${css}</textarea>
+  <textarea id="css-content" class="css-textarea" readonly onclick="this.select()"><style>
+${css}
+</style></textarea>
 </div>
 </body>
 </html>
@@ -1352,6 +1744,145 @@ function copyCSS() {
   }
 
   /**
+   * JavaScriptプレビューを表示
+   */
+  async showScriptPreview() {
+    try {
+      const script = await this.fetchScript();
+      
+      if (!script) {
+        alert('JavaScriptファイルの取得に失敗しました');
+        return;
+      }
+
+      const previewWindow = this.openManagedPreviewWindow('', 'width=800,height=600,scrollbars=yes,resizable=yes', () => {
+        // Window閉じた時のコールバック - ボタン状態を元に戻す
+        this.resetActivePreviewButton();
+      });
+
+      if (!previewWindow) {
+        alert('プレビューWindowの作成に失敗しました');
+        return;
+      }
+
+      previewWindow.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+<title>📄 SiTest JavaScript プレビュー</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    background: #f8f9fa;
+    padding: 20px;
+  }
+  .container {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  .header {
+    background: #28a745;
+    color: white;
+    padding: 15px;
+    margin: -20px -20px 20px -20px;
+    border-radius: 8px 8px 0 0;
+  }
+  .script-info {
+    background: #e7f3ff;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border-left: 4px solid #007bff;
+  }
+  .copy-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  .copy-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+  .copy-btn:hover {
+    background: #0056b3;
+  }
+  .script-textarea {
+    width: 100%;
+    height: 400px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 15px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background: #fff;
+    resize: vertical;
+    box-sizing: border-box;
+    line-height: 1.4;
+  }
+  .script-textarea:focus {
+    outline: none;
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40,167,69,.25);
+  }
+</style>
+<script>
+function copyScript() {
+  const textarea = document.getElementById('script-content');
+  textarea.select();
+  document.execCommand('copy');
+  
+  const btn = document.getElementById('copy-btn');
+  const originalText = btn.textContent;
+  btn.textContent = '✅ コピー完了!';
+  btn.style.background = '#28a745';
+  
+  setTimeout(() => {
+    btn.textContent = originalText;
+    btn.style.background = '#007bff';
+  }, 2000);
+}
+</script>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h2 style="margin: 0;">📄 SiTest JavaScript プレビュー</h2>
+  </div>
+  
+  <div class="script-info">
+    <strong>📁 ファイル:</strong> ${this.options.scriptUrl || this.options.scriptFile}<br>
+    <strong>📊 サイズ:</strong> ${script.length}文字<br>
+    <strong>💡 使い方:</strong> テキストエリアをクリックして全選択、またはコピーボタンを使用<br>
+    <strong>⚡ 実行タイミング:</strong> 全差し替え完了後に自動実行
+  </div>
+  
+  <div class="copy-section">
+    <h3 style="margin: 0;">JavaScript ソースコード</h3>
+    <button id="copy-btn" class="copy-btn" onclick="copyScript()">📋 JS をコピー</button>
+  </div>
+  
+  <textarea id="script-content" class="script-textarea" readonly onclick="this.select()">${script}</textarea>
+</div>
+</body>
+</html>
+      `);
+      previewWindow.document.close();
+    } catch (error) {
+      alert(`JavaScriptプレビューの表示に失敗しました: ${error.message}`);
+    }
+  }
+
+  /**
    * 遅延処理
    */
   delay(ms) {
@@ -1359,7 +1890,213 @@ function copyCSS() {
   }
 
   /**
-   * 要素のスタイルを安全に設定
+   * プレビューWindowを管理しながら開く
+   * 既存のWindowが開いている場合は閉じてから新しいWindowを開く
+   */
+  openManagedPreviewWindow(url, features, onCloseCallback = null) {
+    // 既存のプレビューWindowが開いている場合は閉じる（ボタン状態はリセットしない）
+    if (this.activePreviewWindow && !this.activePreviewWindow.closed) {
+      try {
+        this.activePreviewWindow.close();
+        this.log('Previous preview window closed');
+      } catch (error) {
+        this.log('Error closing previous preview window:', error);
+      }
+    }
+    
+    // 監視を停止（ただしボタン状態はリセットしない）
+    this.stopPreviewWindowMonitoring();
+
+    // 新しいWindowを開く
+    const newWindow = window.open(url, '_blank', features);
+    
+    if (newWindow) {
+      this.activePreviewWindow = newWindow;
+      
+      // Windowの状態を定期的にチェック
+      this.startPreviewWindowMonitoring(onCloseCallback);
+      
+      this.log('Preview window opened and monitoring started');
+      return newWindow;
+    } else {
+      this.error('Failed to open preview window');
+      // Window作成に失敗した場合のみボタン状態をリセット
+      if (onCloseCallback && typeof onCloseCallback === 'function') {
+        onCloseCallback();
+      }
+      return null;
+    }
+  }
+
+  /**
+   * アクティブなプレビューWindowを閉じる
+   */
+  closeActivePreviewWindow() {
+    if (this.activePreviewWindow && !this.activePreviewWindow.closed) {
+      try {
+        this.activePreviewWindow.close();
+        this.log('Active preview window closed');
+      } catch (error) {
+        this.log('Error closing preview window:', error);
+      }
+    }
+    
+    // 監視を停止
+    this.stopPreviewWindowMonitoring();
+    
+    // Window参照のみクリア（ボタン状態は保持）
+    this.activePreviewWindow = null;
+    
+    // resetPreviewWindowState() は呼び出さない（ボタン状態を保持するため）
+  }
+
+  /**
+   * プレビューWindowの監視を開始
+   */
+  startPreviewWindowMonitoring(onCloseCallback) {
+    // 既存の監視を停止
+    this.stopPreviewWindowMonitoring();
+    
+    // 新しい監視を開始
+    this.previewWindowCheckInterval = setInterval(() => {
+      if (!this.activePreviewWindow || this.activePreviewWindow.closed) {
+        this.log('Preview window was closed by user');
+        
+        // コールバック実行（ボタン状態復元など）
+        if (onCloseCallback && typeof onCloseCallback === 'function') {
+          try {
+            onCloseCallback();
+          } catch (error) {
+            this.error('Error in preview window close callback:', error);
+          }
+        }
+        
+        // 状態をリセット
+        this.resetPreviewWindowState();
+        
+        // 監視停止
+        this.stopPreviewWindowMonitoring();
+      }
+    }, 1000); // 1秒ごとにチェック
+  }
+
+  /**
+   * プレビューWindowの監視を停止
+   */
+  stopPreviewWindowMonitoring() {
+    if (this.previewWindowCheckInterval) {
+      clearInterval(this.previewWindowCheckInterval);
+      this.previewWindowCheckInterval = null;
+    }
+  }
+
+  /**
+   * プレビューWindow関連の状態をリセット
+   */
+  resetPreviewWindowState() {
+    // アクティブなボタンの状態を元に戻す
+    this.resetActivePreviewButton();
+    
+    // Window参照をクリア
+    this.activePreviewWindow = null;
+    this.activePreviewButton = null;
+  }
+
+  /**
+   * プレビューボタンをアクティブ状態に設定
+   */
+  setActivePreviewButton(button, originalText) {
+    // 既存のアクティブボタンがある場合は元に戻す
+    this.resetActivePreviewButton();
+    
+    this.log('Setting active preview button:', { button, originalText });
+    
+    // 新しいアクティブボタンを設定
+    this.activePreviewButton = {
+      element: button,
+      originalText: originalText,
+      originalBackground: button.style.backgroundColor || '',
+      originalColor: button.style.color || '',
+      originalFontWeight: button.style.fontWeight || '',
+      originalBoxShadow: button.style.boxShadow || '',
+      originalBorderColor: button.style.borderColor || ''
+    };
+    
+    // CSSクラスを追加
+    button.classList.add('sitest-active-preview-button');
+    
+    // インラインスタイルを強制適用
+    button.style.setProperty('background-color', '#28a745', 'important');
+    button.style.setProperty('color', 'white', 'important');
+    button.style.setProperty('font-weight', 'bold', 'important');
+    button.style.setProperty('box-shadow', '0 0 8px rgba(40, 167, 69, 0.6)', 'important');
+    button.style.setProperty('border-color', '#28a745', 'important');
+    button.style.setProperty('transform', 'scale(1.02)', 'important');
+    
+    // テキストに🟢アイコンを追加
+    const newText = '🟢 ' + originalText;
+    button.textContent = newText;
+    
+    // 強制的に再描画を促す
+    setTimeout(() => {
+      button.style.display = button.style.display;
+    }, 0);
+    
+    this.log('Preview button styling applied:', {
+      backgroundColor: button.style.backgroundColor,
+      color: button.style.color,
+      fontWeight: button.style.fontWeight,
+      boxShadow: button.style.boxShadow,
+      textContent: button.textContent,
+      className: button.className,
+      computedStyle: window.getComputedStyle(button)
+    });
+    
+    this.log('Preview button set to active state:', button, originalText);
+  }
+
+  /**
+   * アクティブプレビューボタンの状態を元に戻す
+   */
+  resetActivePreviewButton() {
+    if (this.activePreviewButton && this.activePreviewButton.element) {
+      const button = this.activePreviewButton.element;
+      
+      // CSSクラスを削除
+      button.classList.remove('sitest-active-preview-button');
+      
+      // スタイルを元に戻す
+      button.style.removeProperty('background-color');
+      button.style.removeProperty('color');
+      button.style.removeProperty('font-weight');
+      button.style.removeProperty('box-shadow');
+      button.style.removeProperty('border-color');
+      
+      // 元の値があれば復元
+      if (this.activePreviewButton.originalBackground) {
+        button.style.backgroundColor = this.activePreviewButton.originalBackground;
+      }
+      if (this.activePreviewButton.originalColor) {
+        button.style.color = this.activePreviewButton.originalColor;
+      }
+      if (this.activePreviewButton.originalFontWeight) {
+        button.style.fontWeight = this.activePreviewButton.originalFontWeight;
+      }
+      if (this.activePreviewButton.originalBoxShadow) {
+        button.style.boxShadow = this.activePreviewButton.originalBoxShadow;
+      }
+      
+      // テキストを元に戻す
+      button.textContent = this.activePreviewButton.originalText;
+      
+      this.log('Preview button state reset:', button);
+    }
+    
+    this.activePreviewButton = null;
+  }
+
+  /**
+   * 要素のスタイルを安全に設定（position対応改善版）
    */
   setElementPositionSafely(element, elementId) {
     if (!element || !element.style) {
@@ -1377,9 +2114,12 @@ function copyCSS() {
     });
 
     // static の場合のみ relative に変更
+    // absolute, fixed, sticky, relativeの場合は変更しない
     if (currentPosition === 'static') {
       element.style.position = 'relative';
-      this.log(`Position set to relative for element: ${elementId}`);
+      this.log(`Position set to relative for element: ${elementId} (was static)`);
+    } else {
+      this.log(`Position unchanged for element: ${elementId} (already ${currentPosition})`);
     }
   }
 
@@ -1426,14 +2166,120 @@ function copyCSS() {
   }
 
   /**
+   * 挿入されたScriptタグを実行（信頼できるソース用）
+   */
+  executeScripts(container) {
+    this.log('[SiTestReplacer] executeScripts called with container:', container); // デバッグログ
+    this.log('[SiTestReplacer] executeScripts option:', this.options.executeScripts); // オプション確認
+    
+    if (!container || !this.options.executeScripts) {
+      this.log('[SiTestReplacer] executeScripts skipped - container or option false'); // スキップ理由
+      return;
+    }
+
+    try {
+      // container内のすべてのscriptタグを取得
+      let scripts = container.querySelectorAll('script');
+      
+      // containerがscriptタグ自体の場合は、自分自身を対象にする
+      if (container.tagName && container.tagName.toLowerCase() === 'script') {
+        scripts = [container];
+        this.log('[SiTestReplacer] Container is script tag itself'); // デバッグログ
+      } else {
+        // 通常のコンテナ内検索
+        scripts = container.querySelectorAll('script');
+      }
+      
+      this.log('[SiTestReplacer] Found scripts:', scripts.length, scripts); // デバッグログ
+      
+      // NodeListまたは配列を配列に変換
+      const scriptsArray = Array.from(scripts);
+      this.log('[SiTestReplacer] Scripts to process:', scriptsArray.length); // デバッグログ
+      
+      scriptsArray.forEach((oldScript, index) => {
+        // 新しいscriptタグを作成
+        const newScript = document.createElement('script');
+        
+        // 属性をコピー
+        Array.from(oldScript.attributes).forEach(attr => {
+          newScript.setAttribute(attr.name, attr.value);
+        });
+        
+        // スクリプト内容をコピー
+        if (oldScript.src) {
+          // 外部スクリプトの場合
+          newScript.src = oldScript.src;
+          this.log(`Loading external script: ${oldScript.src}`);
+          
+          // 読み込み完了/エラー時のログ
+          newScript.onload = () => {
+            this.log(`External script loaded successfully: ${oldScript.src}`);
+          };
+          newScript.onerror = () => {
+            this.error(`Failed to load external script: ${oldScript.src}`);
+          };
+        } else {
+          // インラインスクリプトの場合
+          newScript.textContent = oldScript.textContent;
+          this.log(`Executing inline script (${oldScript.textContent.length} chars)`);
+          // Script content logged only in debug mode
+          if (this.options.debug) {
+            this.log('[SiTestReplacer] Script content:', oldScript.textContent);
+          }
+        }
+        
+        // async/defer属性に応じて実行
+        if (oldScript.src && (oldScript.async || oldScript.defer)) {
+          // 外部スクリプトの非同期実行
+          document.body.append(newScript);
+        } else {
+          // 同期実行
+          document.body.append(newScript);
+        }
+        
+        // 元のscriptタグを削除
+        oldScript.remove();
+      });
+      
+      if (scriptsArray.length > 0) {
+        this.log(`Executed ${scriptsArray.length} script(s) from inserted HTML`);
+        this.log('[SiTestReplacer] Scripts executed:', scriptsArray.length);
+      } else {
+        this.log('[SiTestReplacer] No scripts found in container:', container); // デバッグログ
+      }
+      
+    } catch (error) {
+      this.error('Failed to execute scripts:', error);
+    }
+  }
+
+
+
+  /**
    * 複数操作の解析
    */
   parseMultipleOperations(element) {
     const operations = [];
 
+    this.log('=== PARSE MULTIPLE OPERATIONS START ===');
+    this.log('🔍 DEBUG: Element tag:', element.tagName);
+    this.log('🔍 DEBUG: Element id:', element.id);
+    this.log('🔍 DEBUG: Element class:', element.className);
+    this.log('Element:', element);
+    this.log('Element attributes:', element.attributes);
+
     // メイン操作（data-sitest-type）
     const mainType = element.getAttribute(this.options.attributeName);
     const mainUrl = element.getAttribute('data-sitest-url') || element.getAttribute('data-html-url');
+
+    this.log('🎯 Main operation:', { type: mainType, url: mainUrl });
+    
+    // 🚨 DEBUG: data-sitest-type="after" の場合にここで outerHTML が混入していないかチェック
+    if (mainType && mainType.toLowerCase() === 'after') {
+      this.log('🔍 DEBUG: AFTER operation detected. Checking for unwanted attributes...');
+      const allAttrs = Array.from(element.attributes).map(attr => `${attr.name}="${attr.value}"`);
+      this.log('🔍 All attributes:', allAttrs);
+    }
 
     if (mainType) {
       operations.push({
@@ -1447,12 +2293,14 @@ function copyCSS() {
     let operationIndex = 2;
     while (operationIndex <= 10) { // 最大10個まで
       const operationType = element.getAttribute(`data-sitest-type-${operationIndex}`);
+      const operationUrl = element.getAttribute(`data-sitest-url-${operationIndex}`);
+      
+      this.log(`Additional operation ${operationIndex}:`, { type: operationType, url: operationUrl });
+      
       if (!operationType) {
         operationIndex++;
         continue; // 次の番号をチェック
       }
-
-      const operationUrl = element.getAttribute(`data-sitest-url-${operationIndex}`);
 
       // 有効な操作のみ追加
       if (operationType.trim()) {
@@ -1466,10 +2314,21 @@ function copyCSS() {
       operationIndex++;
     }
 
-    // undefined や null を除外して並び替え
-    return operations
+    // 全ての属性をログ出力（デバッグ用）
+    this.log('All element attributes:');
+    for (let i = 0; i < element.attributes.length; i++) {
+      const attr = element.attributes[i];
+      this.log(`  ${attr.name}: ${attr.value}`);
+    }
+
+    const filteredOperations = operations
       .filter(op => op && op.type && op.type.trim())
       .sort((a, b) => a.order - b.order);
+
+    this.log('Final parsed operations:', filteredOperations);
+    this.log('=== PARSE MULTIPLE OPERATIONS END ===');
+
+    return filteredOperations;
   }
 
   /**
@@ -1486,8 +2345,15 @@ function copyCSS() {
       return;
     }
 
-    // 要素をハイライト
+    // 要素のposition状態を確認
+    const computedStyle = getComputedStyle(element);
+    const currentPosition = computedStyle.position;
+
+    // 古いクラスベースのハイライト（後方互換性）
     element.classList.add('sitest-preview-highlight');
+    
+    // position判定クラスを追加
+    element.classList.add(`position-${currentPosition}`);
 
     // 削除操作があるかチェック
     const hasRemove = validOperations.some(op => op.type?.toLowerCase() === 'remove');
@@ -1495,14 +2361,106 @@ function copyCSS() {
       element.classList.add('remove-target');
     }
 
+    // 🔧 新しい強化されたオーバーレイハイライトを追加
+    const highlightType = hasRemove ? 'remove' : 'default';
+    this.createEnhancedHighlight(element, highlightType);
+
     // サイドメニューに追加
     this.addElementToSideMenu(element, validOperations, elementId);
 
-    this.log(`Preview highlight created for ${validOperations.length} operations`);
+    this.log(`Preview highlight created for ${validOperations.length} operations (position: ${currentPosition}, type: ${highlightType})`);
   }
 
   /**
-   * 複数操作を順次実行（バグ修正版）
+   * 強化されたハイライト表示（オーバーレイ方式）
+   */
+  createEnhancedHighlight(element, type = 'default') {
+    if (!element || !element.parentNode) {
+      return null;
+    }
+    
+    // 既存のオーバーレイハイライトを削除
+    const existingHighlight = element.querySelector('.sitest-overlay-highlight');
+    if (existingHighlight) {
+      existingHighlight.remove();
+    }
+    
+    // 要素の現在のpositionを確認
+    const computedStyle = getComputedStyle(element);
+    const currentPosition = computedStyle.position;
+    
+    // position対応：staticの場合のみrelativeに変更
+    // ※ CSSクラスで制御されるので、ここではinline styleは設定しない
+    if (currentPosition === 'static') {
+      // staticの場合、CSSクラス .position-static で position: relative が適用される
+      this.log(`Element position: static -> will be relative via CSS class`);
+    } else {
+      this.log(`Element position: ${currentPosition} -> no change needed`);
+    }
+    
+    // オーバーレイ要素を作成
+    const overlay = document.createElement('div');
+    overlay.className = 'sitest-overlay-highlight';
+    
+    // タイプに応じてクラスを追加
+    if (type === 'executed') {
+      overlay.classList.add('executed');
+    } else if (type === 'remove') {
+      overlay.classList.add('remove-target');
+    }
+    
+    // 要素の最初の子として挿入
+    element.insertBefore(overlay, element.firstChild);
+    
+    this.log(`Enhanced highlight created for element with position: ${currentPosition}`);
+    return overlay;
+  }
+
+  /**
+   * ハイライトを削除
+   */
+  removeEnhancedHighlight(element) {
+    if (!element) return;
+    
+    // オーバーレイを削除
+    const overlay = element.querySelector('.sitest-overlay-highlight');
+    if (overlay) {
+      overlay.remove();
+    }
+    
+    // position関連のクラスを削除
+    element.classList.remove('position-static', 'position-absolute', 
+                             'position-fixed', 'position-sticky', 'position-relative');
+    
+    // 古いハイライトクラスも削除
+    element.classList.remove('sitest-preview-highlight');
+    
+    this.log('Enhanced highlight removed');
+  }
+
+  /**
+   * すべてのハイライトを更新
+   */
+  updateAllHighlights() {
+    // 🔧 実行済み要素：オーバーレイ削除（クラスベースのスタイルのみ）
+    this.replacedElements.forEach((replacedElement, elementId) => {
+      if (replacedElement && replacedElement.parentNode) {
+        this.removeEnhancedHighlight(replacedElement);
+        // 実行済み要素にはオーバーレイを追加しない
+      }
+    });
+    
+    // 未実行要素：デフォルトハイライト更新
+    this.originalElements.forEach((originalElement, elementId) => {
+      if (originalElement && originalElement.parentNode && !this.replacedElements.has(elementId)) {
+        this.removeEnhancedHighlight(originalElement);
+        this.createEnhancedHighlight(originalElement, 'default');
+      }
+    });
+  }
+
+  /**
+   * 複数操作を順次実行
    */
   async executeMultipleOperations(element, operations, elementId, button) {
     try {
@@ -1565,7 +2523,7 @@ function copyCSS() {
         }
 
         try {
-          const result = await this.executeSingleOperation(currentElement, operation, currentParent, currentNext);
+          const result = await this.executeSingleOperation(currentElement, operation, currentParent, currentNext, elementId);
           executedOperations.push({
             operation,
             result,
@@ -1654,10 +2612,19 @@ function copyCSS() {
   updateElementAppearance(element, elementId, button, isReplaced) {
     try {
       if (isReplaced) {
+        // 🔧 差し替え後：オーバーレイを削除して、古いクラスベースのスタイルのみ
+        this.removeEnhancedHighlight(element);
         element.classList.remove('sitest-preview-highlight', 'remove-target');
-        element.classList.add('sitest-preview-replaced');
+        
+        // 🔧 プレビューモード時は sitest-preview-replaced クラスを追加しない
+        // element.classList.add('sitest-preview-replaced');
       } else {
+        // 復元後：デフォルトハイライトを表示
+        this.removeEnhancedHighlight(element);
         element.classList.remove('sitest-preview-replaced');
+        
+        // デフォルトハイライトを追加
+        this.createEnhancedHighlight(element, 'default');
         element.classList.add('sitest-preview-highlight');
       }
     } catch (error) {
@@ -1666,9 +2633,9 @@ function copyCSS() {
   }
 
   /**
-   * 単一操作を実行（バグ修正版）
+   * 単一操作を実行
    */
-  async executeSingleOperation(element, operation, parentElement, nextElement) {
+  async executeSingleOperation(element, operation, parentElement, nextElement, elementId = null) {
     // operation の有効性チェック
     if (!operation || !operation.type) {
       throw new Error('Invalid operation: operation is null or undefined');
@@ -1724,19 +2691,77 @@ function copyCSS() {
       throw new Error('Element was removed from DOM during operation');
     }
 
+    this.log(`🔧 === EXECUTE SINGLE OPERATION: ${type.toLowerCase()} ===`);
+    this.log(`🔧 DEBUG: Element:`, element);
+    this.log(`🔧 DEBUG: Operation URL:`, url);
+    
     switch (type.toLowerCase()) {
       case 'outerhtml':
       case 'outer':
-        newElement = tempDiv.firstElementChild || tempDiv.firstChild;
-        if (!newElement) {
-          throw new Error('No valid element found in HTML content');
+        this.log('🚨 Processing outerHTML operation');
+        this.log('🚨 DEBUG: This should NOT happen for after operation!');
+        const elementsToInsert = Array.from(tempDiv.childNodes).filter(node =>
+          node.nodeType === Node.ELEMENT_NODE ||
+          (node.nodeType === Node.TEXT_NODE && node.textContent.trim())
+        );
+
+        if (elementsToInsert.length === 0) {
+          throw new Error('No valid elements found in HTML content');
         }
-        
+
         try {
           const currentParent = element.parentNode;
-          currentParent.replaceChild(newElement, element);
+          const currentNext = element.nextSibling;
+          
+          // 挿入される要素にマーカーを追加（復元時に特定するため）
+          // elementIdがない場合はランダムIDを生成
+          const safeElementId = elementId || element.dataset.sitestId || `temp-${Date.now()}`;
+          const insertionMarker = `sitest-outer-${safeElementId}-${Date.now()}`;
+          elementsToInsert.forEach((el, index) => {
+            if (el.nodeType === Node.ELEMENT_NODE) {
+              el.dataset.sitestOuterMarker = insertionMarker;
+              if (index === 0) {
+                // 最初の要素に元のIDを設定
+                el.dataset.sitestId = safeElementId;
+              }
+            }
+          });
+
+          // 元の要素を削除
+          element.remove();
+
+          // 複数要素を順次挿入
+          elementsToInsert.forEach(elementToInsert => {
+            if (currentNext && currentNext.parentNode) {
+              currentParent.insertBefore(elementToInsert, currentNext);
+            } else {
+              currentParent.append(elementToInsert);
+            }
+          });
+
+          // 最後に挿入された要素を newElement とする
+          newElement = elementsToInsert[elementsToInsert.length - 1];
           newParent = newElement.parentNode;
           newNext = newElement.nextSibling;
+          
+          // Script実行を追加（挿入された全要素に対して）
+          elementsToInsert.forEach(insertedElement => {
+            if (insertedElement.nodeType === Node.ELEMENT_NODE) {
+              this.executeScripts(insertedElement);
+            }
+          });
+          
+          // outerHTML操作の場合は特別な戻り値
+          return {
+            type: 'replaced',
+            element,
+            newElement,
+            newParent,
+            newNext,
+            insertedElements: elementsToInsert, // 挿入された全要素を記録
+            insertionMarker, // マーカーも記録
+            html
+          };
         } catch (error) {
           throw new Error(`Failed to replace element: ${error.message}`);
         }
@@ -1744,9 +2769,14 @@ function copyCSS() {
 
       case 'innerhtml':
       case 'inner':
+        this.log('Processing innerHTML operation');
         if (!this.setHTMLSafely(element, html, 'innerHTML')) {
           throw new Error('Failed to set innerHTML');
         }
+        
+        // Script実行を追加
+        this.executeScripts(element);
+        
         newElement = element;
         newParent = element.parentNode;
         newNext = element.nextSibling;
@@ -1754,25 +2784,66 @@ function copyCSS() {
 
       case 'insertafter':
       case 'after':
-        const afterElement = tempDiv.firstElementChild || tempDiv.firstChild;
-        if (!afterElement) {
-          throw new Error('No valid element found in HTML content for insertAfter');
+        this.log('✅ Processing insertAfter operation');
+        this.log('✅ DEBUG: This is the correct operation for after type!');
+        
+        // tempDivから全ての有効なノードを取得（outerHTMLと同様）
+        const afterElements = Array.from(tempDiv.childNodes).filter(node =>
+          node.nodeType === Node.ELEMENT_NODE ||
+          (node.nodeType === Node.TEXT_NODE && node.textContent.trim())
+        );
+        
+        if (afterElements.length === 0) {
+          throw new Error('No valid elements found in HTML content for insertAfter');
         }
+        
+        this.log(`InsertAfter: Found ${afterElements.length} elements to insert`);
         
         try {
           const currentParent = element.parentNode;
           const currentNext = element.nextSibling;
           
-          if (currentNext) {
-            currentParent.insertBefore(afterElement, currentNext);
-          } else {
-            currentParent.appendChild(afterElement);
-          }
+          // 複数要素にマーカーを追加（復元時に特定するため）
+          const safeElementId = elementId || element.dataset.sitestId || `temp-${Date.now()}`;
+          const insertionMarker = `sitest-after-${safeElementId}-${Date.now()}`;
+          afterElements.forEach((el, index) => {
+            if (el.nodeType === Node.ELEMENT_NODE) {
+              el.dataset.sitestAfterMarker = insertionMarker;
+            }
+          });
+          
+          // 複数要素を順次挿入
+          afterElements.forEach(elementToInsert => {
+            if (currentNext && currentNext.parentNode) {
+              currentParent.insertBefore(elementToInsert, currentNext);
+            } else {
+              currentParent.append(elementToInsert);
+            }
+          });
+          
+          // Script実行を追加（挿入された全要素に対して）
+          afterElements.forEach(insertedElement => {
+            if (insertedElement.nodeType === Node.ELEMENT_NODE) {
+              this.executeScripts(insertedElement);
+            }
+          });
           
           // insertAfterの場合、元の要素は残る
           newElement = element;
           newParent = element.parentNode;
           newNext = element.nextSibling;
+          
+          // 挿入された要素を記録（複数対応）
+          return {
+            type: 'replaced',
+            element,
+            newElement,
+            newParent,
+            newNext,
+            insertedElements: afterElements, // 挿入された全要素を記録
+            insertionMarker, // マーカーも記録
+            html
+          };
         } catch (error) {
           throw new Error(`Failed to insert element after: ${error.message}`);
         }
@@ -1780,19 +2851,60 @@ function copyCSS() {
 
       case 'insertbefore':
       case 'before':
-        const beforeElement = tempDiv.firstElementChild || tempDiv.firstChild;
-        if (!beforeElement) {
-          throw new Error('No valid element found in HTML content for insertBefore');
+        this.log('Processing insertBefore operation');
+        
+        // tempDivから全ての有効なノードを取得（outerHTMLと同様）
+        const beforeElements = Array.from(tempDiv.childNodes).filter(node =>
+          node.nodeType === Node.ELEMENT_NODE ||
+          (node.nodeType === Node.TEXT_NODE && node.textContent.trim())
+        );
+        
+        if (beforeElements.length === 0) {
+          throw new Error('No valid elements found in HTML content for insertBefore');
         }
+        
+        this.log(`InsertBefore: Found ${beforeElements.length} elements to insert`);
         
         try {
           const currentParent = element.parentNode;
-          currentParent.insertBefore(beforeElement, element);
+          
+          // 複数要素にマーカーを追加（復元時に特定するため）
+          const safeElementId = elementId || element.dataset.sitestId || `temp-${Date.now()}`;
+          const insertionMarker = `sitest-before-${safeElementId}-${Date.now()}`;
+          beforeElements.forEach((el, index) => {
+            if (el.nodeType === Node.ELEMENT_NODE) {
+              el.dataset.sitestBeforeMarker = insertionMarker;
+            }
+          });
+          
+          // 複数要素を順次挿入（逆順で挿入して正しい順序を保つ）
+          beforeElements.reverse().forEach(elementToInsert => {
+            currentParent.insertBefore(elementToInsert, element);
+          });
+          
+          // Script実行を追加（挿入された全要素に対して）
+          beforeElements.forEach(insertedElement => {
+            if (insertedElement.nodeType === Node.ELEMENT_NODE) {
+              this.executeScripts(insertedElement);
+            }
+          });
           
           // insertBeforeの場合、元の要素は残る
           newElement = element;
           newParent = element.parentNode;
           newNext = element.nextSibling;
+          
+          // 挿入された要素を記録（複数対応）
+          return {
+            type: 'replaced',
+            element,
+            newElement,
+            newParent,
+            newNext,
+            insertedElements: beforeElements, // 挿入された全要素を記録
+            insertionMarker, // マーカーも記録
+            html
+          };
         } catch (error) {
           throw new Error(`Failed to insert element before: ${error.message}`);
         }
@@ -1817,23 +2929,33 @@ function copyCSS() {
    */
   revertElement(elementId, button) {
     try {
+      this.log('=== REVERT ELEMENT START ===', elementId);
+      
       const original = this.originalElements.get(elementId);
       const replaced = this.replacedElements.get(elementId);
 
+      this.log('Original data:', original);
+      this.log('Replaced data:', replaced);
+
       if (!original || !replaced) {
         this.error('Original or replaced element not found');
+        this.log('Available original elements:', Array.from(this.originalElements.keys()));
+        this.log('Available replaced elements:', Array.from(this.replacedElements.keys()));
         return;
       }
 
       if (replaced.type === 'multiple') {
+        this.log('Processing multiple operations revert');
         // 複数操作から復元
         this.revertMultipleOperations(elementId, button, original, replaced);
       } else if (replaced.type === 'removed') {
+        this.log('Processing removed element revert');
         // 削除から復元（従来通り）
         replaced.element.style.display = '';
         replaced.element.classList.remove('sitest-preview-replaced');
         replaced.element.classList.add('sitest-preview-highlight', 'remove-target');
       } else if (replaced.type === 'replaced') {
+        this.log('Processing replaced element revert');
         // outerHTML置換から復元（従来通り）
         const originalElement = original.element.cloneNode(true);
 
@@ -1854,7 +2976,7 @@ function copyCSS() {
         
         // ボタンが存在する場合のみ追加（サイドメニュー対応）
         if (button) {
-          originalElement.appendChild(button);
+          originalElement.append(button);
         }
 
         this.originalElements.set(elementId, {
@@ -1863,6 +2985,7 @@ function copyCSS() {
           nextSibling: originalElement.nextSibling
         });
       } else if (replaced.type === 'modified') {
+        this.log('Processing modified element revert');
         // innerHTML等から復元（従来通り）
         const originalElement = original.element.cloneNode(true);
 
@@ -1885,9 +3008,11 @@ function copyCSS() {
       // 要素グループの参照を更新
       this.updateElementGroupReference(elementId);
 
+      this.log('=== REVERT ELEMENT SUCCESS ===', elementId);
       this.log(`Element reverted: ${elementId}`);
 
     } catch (error) {
+      this.log('=== REVERT ELEMENT ERROR ===', error);
       this.error('Failed to revert element:', error);
       
       // ボタンが存在する場合のみ更新（サイドメニュー対応）
@@ -1908,86 +3033,272 @@ function copyCSS() {
    */
   revertMultipleOperations(elementId, button, original, replaced) {
     try {
-      // デバッグログ追加
-      this.log('Reverting multiple operations for:', elementId);
-      this.log('Executed operations:', replaced.executedOperations);
+      this.log('=== REVERT MULTIPLE OPERATIONS START ===');
+      this.log('Element ID:', elementId);
+      this.log('Original:', original);
+      this.log('Replaced:', replaced);
 
       let revertedElement = null;
 
-      // 現在の要素を削除（複数操作で作成された可能性のある要素群）
-      if (replaced.element && replaced.element.parentNode) {
-        // 複数操作で挿入された可能性のある隣接要素も確認
-        const insertedElements = this.findInsertedElements(replaced.executedOperations);
-        insertedElements.forEach(el => {
+      // 1. 挿入された要素をすべて削除
+      const insertedElements = this.findInsertedElements(replaced.executedOperations);
+      this.log('Inserted elements to remove:', insertedElements);
+      insertedElements.forEach(el => {
+        if (el && el.parentNode) {
+          this.log('Removing inserted element:', el);
+          el.remove();
+        }
+      });
+
+      // 2. outerHTML操作があったかチェック
+      const outerHTMLOperation = replaced.executedOperations.find(execOp => 
+        execOp.operation && execOp.operation.type && 
+        ['outerhtml', 'outer'].includes(execOp.operation.type.toLowerCase())
+      );
+
+      this.log('OuterHTML operation:', outerHTMLOperation);
+
+      if (outerHTMLOperation) {
+        // outerHTML操作の場合：置き換えられた全ての要素を削除して元の要素を復元
+        this.log('Processing outerHTML revert');
+        
+        // outerHTML操作で挿入された全ての要素を特定して削除
+        const replacedElementsToRemove = [];
+        
+        // data-sitest-idを持つ要素（メインの置き換えられた要素）
+        const mainReplacedElement = document.querySelector(`[data-sitest-id="${elementId}"]`);
+        if (mainReplacedElement) {
+          replacedElementsToRemove.push(mainReplacedElement);
+          this.log('Found main replaced element:', mainReplacedElement);
+        }
+        
+        // その他の関連要素も探す（outerHTMLで挿入された兄弟要素など）
+        if (replaced.element && replaced.element.parentNode) {
+          // replaced.elementとその兄弟要素をチェック
+          const parent = replaced.element.parentNode;
+          const children = Array.from(parent.children);
+          
+          // 元の要素の位置付近の要素を特定
+          const originalPosition = Array.from(parent.children).indexOf(replaced.element);
+          this.log('Original position in parent:', originalPosition);
+          
+          // outerHTML操作の結果として挿入された可能性のある要素を収集
+          // （この部分は、実際のHTML構造に応じて調整が必要）
+          if (replaced.element) {
+            replacedElementsToRemove.push(replaced.element);
+          }
+        }
+        
+        this.log('Elements to remove for outerHTML revert:', replacedElementsToRemove);
+        
+        // 挿入位置を記録（最初の要素の位置を使用）
+        let insertionParent = null;
+        let insertionNext = null;
+        
+        if (replacedElementsToRemove.length > 0 && replacedElementsToRemove[0].parentNode) {
+          insertionParent = replacedElementsToRemove[0].parentNode;
+          insertionNext = replacedElementsToRemove[0].nextSibling;
+        }
+        
+        // 全ての置き換えられた要素を削除
+        replacedElementsToRemove.forEach(el => {
           if (el && el.parentNode) {
+            this.log('Removing replaced element:', el);
             el.remove();
           }
         });
-
-        // メイン要素の処理
-        if (replaced.element.style.display === 'none') {
-          // 削除操作されていた場合
-          replaced.element.style.display = '';
-          revertedElement = replaced.element;
-        } else {
-          // その他の操作の場合、元の要素で置換
-          const originalElement = original.element.cloneNode(true);
-          replaced.element.parentNode.replaceChild(originalElement, replaced.element);
-
-          // ハイライトとボタンを復元
-          originalElement.classList.add('sitest-preview-highlight');
-          this.setElementPositionSafely(originalElement, elementId);
-          
-          // ボタンが存在する場合のみ追加（サイドメニュー対応）
-          if (button) {
-            originalElement.appendChild(button);
-          }
-
-          // 元の要素の情報を更新
-          this.originalElements.set(elementId, {
-            element: originalElement.cloneNode(true),
-            parentNode: originalElement.parentNode,
-            nextSibling: originalElement.nextSibling
-          });
-          revertedElement = originalElement;
-        }
-      } else {
-        // 要素が完全に削除されている場合、原位置に復元
+        
+        // 元の要素を復元
         const originalElement = original.element.cloneNode(true);
-        if (original.parentNode && original.parentNode.contains && !original.parentNode.contains(originalElement)) {
-          if (original.nextSibling && original.nextSibling.parentNode) {
+        originalElement.dataset.sitestId = elementId;
+        
+        if (insertionParent) {
+          if (insertionNext && insertionNext.parentNode === insertionParent) {
+            insertionParent.insertBefore(originalElement, insertionNext);
+          } else {
+            insertionParent.appendChild(originalElement);
+          }
+          this.log('Restored original element at recorded position');
+        } else if (original.parentNode) {
+          // フォールバック：元の位置情報を使用
+          if (original.nextSibling && original.nextSibling.parentNode === original.parentNode) {
             original.parentNode.insertBefore(originalElement, original.nextSibling);
           } else {
             original.parentNode.appendChild(originalElement);
           }
-
-          originalElement.classList.add('sitest-preview-highlight');
-          this.setElementPositionSafely(originalElement, elementId);
-          
-          // ボタンが存在する場合のみ追加（サイドメニュー対応）
-          if (button) {
-            originalElement.appendChild(button);
+          this.log('Restored original element at original position');
+        } else {
+          throw new Error('Cannot determine position to restore element');
+        }
+        
+        originalElement.classList.add('sitest-preview-highlight');
+        this.setElementPositionSafely(originalElement, elementId);
+        revertedElement = originalElement;
+        
+      } else {
+        // 通常の復元処理（outerHTML以外）
+        this.log('Processing normal revert');
+        
+        if (replaced.element && replaced.element.parentNode && replaced.element.style) {
+          if (replaced.element.style.display === 'none') {
+            replaced.element.style.display = '';
+            revertedElement = replaced.element;
+            this.log('Restored hidden element');
+          } else {
+            const originalElement = original.element.cloneNode(true);
+            originalElement.dataset.sitestId = elementId;
+            
+            replaced.element.parentNode.replaceChild(originalElement, replaced.element);
+            originalElement.classList.add('sitest-preview-highlight');
+            this.setElementPositionSafely(originalElement, elementId);
+            
+            revertedElement = originalElement;
+            this.log('Replaced with original element');
           }
-          revertedElement = originalElement;
+        } else {
+          const originalElement = original.element.cloneNode(true);
+          originalElement.dataset.sitestId = elementId;
+          
+          if (original.parentNode) {
+            if (original.nextSibling && original.nextSibling.parentNode === original.parentNode) {
+              original.parentNode.insertBefore(originalElement, original.nextSibling);
+            } else {
+              original.parentNode.appendChild(originalElement);
+            }
+            
+            originalElement.classList.add('sitest-preview-highlight');
+            this.setElementPositionSafely(originalElement, elementId);
+            revertedElement = originalElement;
+            this.log('Restored to original position');
+          }
         }
       }
 
-      this.log(`Multiple operations reverted for element: ${elementId}`);
-      
-      // 要素グループの参照を更新
+      // 3. 要素グループの参照を更新
       if (revertedElement) {
+        this.log('Updating element group references');
         const groupData = this.elementGroups.get(elementId);
         if (groupData) {
           groupData.element = revertedElement;
           this.elementGroups.set(elementId, groupData);
+          
+          // 4. イベントリスナーを再設定
+          this.reattachEventListeners(groupData.group, revertedElement, groupData.operations, elementId);
         }
+        
+        // 5. originalElements の参照も更新
+        this.originalElements.set(elementId, {
+          element: revertedElement.cloneNode(true),
+          parentNode: revertedElement.parentNode,
+          nextSibling: revertedElement.nextSibling
+        });
+        
+        this.log('=== REVERT MULTIPLE OPERATIONS SUCCESS ===');
+      } else {
+        this.log('=== REVERT MULTIPLE OPERATIONS FAILED - No element restored ===');
       }
-      
+
       return revertedElement;
 
     } catch (error) {
+      this.log('=== REVERT MULTIPLE OPERATIONS ERROR ===', error);
       this.error('Failed to revert multiple operations:', error);
+      this.error('Error details:', error.stack);
       throw error;
+    }
+  }
+
+  /**
+   * 復元された要素にイベントリスナーを再設定
+   */
+  reattachEventListeners(group, element, operations, elementId) {
+    try {
+      this.log('Reattaching event listeners for:', elementId);
+      
+      // 既存のイベントリスナーをクリア（groupの中のボタン要素を再取得）
+      const executeBtn = group.querySelector('.execute');
+      const navigateBtn = group.querySelector('.navigate');
+      const previewBtn = group.querySelector('.preview');
+      const revertBtn = group.querySelector('.revert');
+      
+      // 新しいイベントリスナーを設定（setupElementGroupEventsと同じロジック）
+      if (executeBtn) {
+        // 既存のイベントリスナーを削除してから新しいものを追加
+        const newExecuteBtn = executeBtn.cloneNode(true);
+        executeBtn.parentNode.replaceChild(newExecuteBtn, executeBtn);
+        
+        newExecuteBtn.addEventListener('click', async () => {
+          try {
+            newExecuteBtn.disabled = true;
+            newExecuteBtn.textContent = '⏳ 実行中...';
+            
+            await this.executeElementOperations(element, operations, elementId);
+            
+            // UIを更新
+            newExecuteBtn.style.display = 'none';
+            const newRevertBtn = group.querySelector('.revert');
+            if (newRevertBtn) {
+              newRevertBtn.disabled = false;
+              newRevertBtn.style.display = 'inline-block';
+            }
+            
+          } catch (error) {
+            this.error('Failed to execute from side menu:', error);
+            newExecuteBtn.textContent = '⚠ エラー';
+            newExecuteBtn.disabled = false;
+          }
+        });
+      }
+      
+      if (navigateBtn) {
+        const newNavigateBtn = navigateBtn.cloneNode(true);
+        navigateBtn.parentNode.replaceChild(newNavigateBtn, navigateBtn);
+        
+        newNavigateBtn.addEventListener('click', () => {
+          this.navigateToElement(elementId);
+        });
+      }
+      
+      if (previewBtn) {
+        const newPreviewBtn = previewBtn.cloneNode(true);
+        previewBtn.parentNode.replaceChild(newPreviewBtn, previewBtn);
+        
+        newPreviewBtn.addEventListener('click', () => {
+          this.log('Element preview button clicked!', newPreviewBtn);
+          
+          this.resetActivePreviewButton();
+          this.setActivePreviewButton(newPreviewBtn, '💻コード');
+          this.showOperationsPreview(operations);
+        });
+      }
+      
+      if (revertBtn) {
+        const newRevertBtn = revertBtn.cloneNode(true);
+        revertBtn.parentNode.replaceChild(newRevertBtn, revertBtn);
+        
+        newRevertBtn.addEventListener('click', () => {
+          try {
+            this.revertElement(elementId, null);
+            
+            const newExecuteBtn = group.querySelector('.execute');
+            if (newExecuteBtn) {
+              newExecuteBtn.style.display = 'inline-block';
+              newExecuteBtn.disabled = false;
+              newExecuteBtn.textContent = '実行';
+            }
+            newRevertBtn.disabled = true;
+            newRevertBtn.style.display = 'none';
+            
+          } catch (error) {
+            this.error('Failed to revert from side menu:', error);
+          }
+        });
+      }
+      
+      this.log('Event listeners reattached successfully');
+      
+    } catch (error) {
+      this.error('Failed to reattach event listeners:', error);
     }
   }
 
@@ -1996,35 +3307,109 @@ function copyCSS() {
    */
   findInsertedElements(executedOperations) {
     const insertedElements = [];
-
-    // executedOperations が配列かチェック
-    if (!Array.isArray(executedOperations)) {
-      this.log('executedOperations is not an array:', executedOperations);
+    
+    if (!executedOperations || !Array.isArray(executedOperations)) {
+      this.log('No executed operations to check for inserted elements');
       return insertedElements;
     }
-
+    
     executedOperations.forEach((execOp, index) => {
-      // execOp が有効かチェック
-      if (!execOp || !execOp.operation || !execOp.result) {
-        this.log(`Invalid executed operation at index ${index}:`, execOp);
-        return;
-      }
-
-      const {
-        operation,
-        result
-      } = execOp;
-
-      if (operation.type && (operation.type.toLowerCase() === 'insertafter' ||
-          operation.type.toLowerCase() === 'insertbefore')) {
-        // insert操作で挿入された要素を特定
-        if (result && result.newElement && result.newElement !== result.element) {
-          insertedElements.push(result.newElement);
+      this.log(`Checking executed operation ${index}:`, execOp);
+      
+      if (execOp.operation && execOp.result) {
+        const opType = execOp.operation.type?.toLowerCase();
+        
+        // outerHTML操作で挿入された全要素を特定
+        if (opType === 'outerhtml' || opType === 'outer') {
+          if (execOp.result.insertedElements && Array.isArray(execOp.result.insertedElements)) {
+            this.log(`Found ${execOp.result.insertedElements.length} elements from outerHTML:`, execOp.result.insertedElements);
+            execOp.result.insertedElements.forEach(el => {
+              if (!insertedElements.includes(el)) {
+                insertedElements.push(el);
+              }
+            });
+          }
+          
+          // マーカーを使って要素を探す
+          if (execOp.result.insertionMarker) {
+            const markedElements = document.querySelectorAll(`[data-sitest-outer-marker="${execOp.result.insertionMarker}"]`);
+            this.log(`Found ${markedElements.length} elements by marker:`, markedElements);
+            markedElements.forEach(el => {
+              if (!insertedElements.includes(el)) {
+                insertedElements.push(el);
+              }
+            });
+          }
+        }
+        
+        // insertAfter, insertBefore 操作で挿入された要素を特定
+        if (opType === 'insertafter' || opType === 'insertbefore' || opType === 'after' || opType === 'before') {
+          // 従来の単一要素記録
+          if (execOp.result.insertedElement) {
+            this.log(`Found inserted element from ${opType}:`, execOp.result.insertedElement);
+            insertedElements.push(execOp.result.insertedElement);
+          }
+          
+          // 新しい複数要素記録
+          if (execOp.result.insertedElements && Array.isArray(execOp.result.insertedElements)) {
+            this.log(`Found ${execOp.result.insertedElements.length} elements from ${opType}:`, execOp.result.insertedElements);
+            execOp.result.insertedElements.forEach(el => {
+              if (!insertedElements.includes(el)) {
+                insertedElements.push(el);
+              }
+            });
+          }
+          
+          // マーカーを使って要素を探す
+          if (execOp.result.insertionMarker) {
+            const markerSelectors = [
+              `[data-sitest-after-marker="${execOp.result.insertionMarker}"]`,
+              `[data-sitest-before-marker="${execOp.result.insertionMarker}"]`
+            ];
+            
+            markerSelectors.forEach(selector => {
+              const markedElements = document.querySelectorAll(selector);
+              this.log(`Found ${markedElements.length} elements by marker (${selector}):`, markedElements);
+              markedElements.forEach(el => {
+                if (!insertedElements.includes(el)) {
+                  insertedElements.push(el);
+                }
+              });
+            });
+          }
+          
+          // 結果の新しい要素も確認
+          if (execOp.result.newElement && 
+              execOp.result.newElement !== execOp.result.insertedElement) {
+            // 重複を避けて追加
+            if (!insertedElements.includes(execOp.result.newElement)) {
+              insertedElements.push(execOp.result.newElement);
+            }
+          }
+        }
+        
+        // その他の操作でも追加された要素があるかチェック
+        if (execOp.result.insertedElements && Array.isArray(execOp.result.insertedElements)) {
+          execOp.result.insertedElements.forEach(el => {
+            if (!insertedElements.includes(el)) {
+              insertedElements.push(el);
+            }
+          });
         }
       }
     });
-
-    return insertedElements;
+    
+    // DOM内に存在する要素のみをフィルタリング
+    const validElements = insertedElements.filter(el => {
+      const isValid = el && el.parentNode && document.contains(el);
+      if (!isValid && el) {
+        this.log('Skipping element not in DOM:', el);
+      }
+      return isValid;
+    });
+    
+    this.log('Final inserted elements to remove:', validElements);
+    return validElements;
   }
 
   /**
@@ -2051,12 +3436,24 @@ function copyCSS() {
   async showHTMLPreview(htmlUrl, type) {
     try {
       const html = await this.fetchHTML(htmlUrl);
-      const previewWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+      const previewWindow = this.openManagedPreviewWindow('', 'width=800,height=600,scrollbars=yes,resizable=yes', () => {
+        // Window閉じた時のコールバック - ボタン状態を元に戻す
+        this.resetActivePreviewButton();
+      });
+
+      if (!previewWindow) {
+        alert('プレビューWindowの作成に失敗しました');
+        return;
+      }
 
       previewWindow.document.write(`
 <!DOCTYPE html>
 <html>
 <head>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap" rel="stylesheet">
 <title>HTMLプレビュー - ${htmlUrl}</title>
 <style>
   body {
@@ -2115,7 +3512,12 @@ function copyCSS() {
       }
       element.dataset.sitestId = elementId;
 
-      this.log(`Processing element with ${operations.length} operations`);
+      this.log(`📋 Processing element with ${operations.length} operations`);
+      
+      // 🚨 DEBUG: どの操作が実際にパースされたかを明確に表示
+      operations.forEach((op, idx) => {
+        this.log(`📋 Operation ${idx + 1}: ${op.type} (order: ${op.order}, url: ${op.url})`);
+      });
 
       // プレビューモードの場合はハイライト表示のみ
       if (this.options.previewMode) {
@@ -2141,7 +3543,7 @@ function copyCSS() {
           continue;
         }
 
-        const result = await this.executeSingleOperation(currentElement, operation, currentElement.parentNode, currentElement.nextSibling);
+        const result = await this.executeSingleOperation(currentElement, operation, currentElement.parentNode, currentElement.nextSibling, elementId);
 
         if (result && result.newElement) {
           currentElement = result.newElement;
@@ -2197,6 +3599,12 @@ function copyCSS() {
 
       this.log(`DOM ${this.options.previewMode ? 'preview' : 'replacement'} process completed`);
 
+      // 🔧 通常モードでも全差し替え完了後にJS実行
+      if (!this.options.previewMode && elements.length > 0 && this.options.executeAfterAllReplacements) {
+        this.log(`All ${elements.length} operations completed in normal mode. Executing site script...`);
+        await this.loadAndExecuteScript();
+      }
+
     } catch (error) {
       this.error('Error during processing:', error);
     } finally {
@@ -2205,7 +3613,7 @@ function copyCSS() {
   }
 
   /**
-   * プレビューモードの情報を表示（新UI版）
+   * プレビューモードの情報を表示
    */
   showPreviewModeInfo(elementCount) {
     // サイドメニューを作成・表示
@@ -2273,6 +3681,10 @@ function copyCSS() {
     this.processedElements.clear();
     this.isProcessing = false;
 
+    // プレビューWindow関連の状態をクリア
+    this.closeActivePreviewWindow();
+    this.resetActivePreviewButton();
+
     // サイドメニューを削除
     if (this.sideMenu) {
       this.sideMenu.remove();
@@ -2315,10 +3727,10 @@ function copyCSS() {
     this.originalStyles.clear();
     this.elementGroups.clear();
 
-    this.log('SiTestReplacer state reset with new UI');
+    this.log('SiTestReplacer state reset with new UI and window management');
   }
 }
-
+/*
 // 使用例とデフォルト初期化
 (function () {
   'use strict';
@@ -2359,6 +3771,7 @@ function copyCSS() {
   window.sitestIsPreview = () => replacer.options.previewMode;
 
 })();
+*/
 
 /*
 使用方法:
