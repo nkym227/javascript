@@ -1,0 +1,165 @@
+/* SiTest用CSS - 既存サイトに影響しないスコープ制限 */
+/* SiTestブロック基本設定 */
+.Sitest-block {
+  font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  box-sizing: border-box;
+}
+.Sitest-block *,
+.Sitest-block *::before,
+.Sitest-block *::after {
+  box-sizing: inherit;
+}
+/* ヒーローセクション */
+.Sitest-block .hero-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 60px 20px;
+  text-align: center;
+  border-radius: 12px;
+  margin-bottom: 40px;
+}
+.Sitest-block .hero-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+.Sitest-block .hero-subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  margin-bottom: 30px;
+}
+/* CTAボタン */
+.Sitest-block .cta-button {
+  display: inline-block;
+  background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+  color: white;
+  padding: 16px 32px;
+  border-radius: 50px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+}
+.Sitest-block .cta-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+  background: linear-gradient(45deg, #ee5a24, #ff6b6b);
+}
+/* 特徴セクション */
+.Sitest-block .features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+  margin: 40px 0;
+}
+.Sitest-block .feature-card {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+.Sitest-block .feature-card:hover {
+  transform: translateY(-5px);
+}
+.Sitest-block .feature-icon {
+  font-size: 3rem;
+  margin-bottom: 20px;
+  display: block;
+}
+.Sitest-block .feature-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: #2c3e50;
+}
+.Sitest-block .feature-description {
+  color: #7f8c8d;
+  line-height: 1.6;
+}
+/* 価格表示 */
+.Sitest-block .price-tag {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 25px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: inline-block;
+  margin: 10px 0;
+}
+/* お客様の声 */
+.Sitest-block .testimonial {
+  background: #f8f9fa;
+  padding: 25px;
+  border-radius: 10px;
+  margin: 20px 0;
+  border-left: 4px solid #007bff;
+}
+.Sitest-block .testimonial-text {
+  font-style: italic;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+}
+.Sitest-block .testimonial-author {
+  font-weight: 600;
+  color: #007bff;
+}
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .Sitest-block .hero-title {
+    font-size: 2rem;
+  }
+  .Sitest-block .hero-subtitle {
+    font-size: 1rem;
+  }
+  .Sitest-block .features-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .Sitest-block .cta-button {
+    padding: 14px 28px;
+    font-size: 1rem;
+  }
+}
+/* アニメーション */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.Sitest-block .fade-in-up {
+  animation: fadeInUp 0.6s ease;
+}
+/* 限定表示バッジ */
+.Sitest-block .limited-badge {
+  background: #e74c3c;
+  color: white;
+  padding: 5px 12px;
+  border-radius: 15px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: inline-block;
+  margin-bottom: 10px;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}

@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SiTest Replacer ガイド & デモ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        'mono': ['Consolas', 'Monaco', 'Courier New', 'monospace'],
+      }
+    }
+  }
+}
+</script>
+<style>
+body {
+  font-family: "Noto Sans JP", sans-serif;
+}
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<!-- ヘッダー -->
+<header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-8">
+  <div class="container mx-auto px-6 max-w-6xl">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+      <!-- タイトル部分 -->
+      <div class="mb-6 lg:mb-0">
+        <h1 class="text-4xl font-bold mb-2">SiTest Replacer</h1>
+        <p class="text-xl opacity-90">完全ガイド & 実装デモ</p>
+      </div>
+      <!-- ダウンロード部分 -->
+      <div class="flex justify-center lg:justify-end">
+        <!-- sitest-replacer.js ダウンロードボタン -->
+        <button id="downloadBtn" class="bg-white text-blue-600 hover:bg-blue-50 px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center group">
+          <svg class="w-5 h-5 mr-2 group-hover:animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          sitest-replacer.js
+          <span class="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Download</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+<div class="container mx-auto px-6 py-8 max-w-6xl">
+  <!-- SiTest Replacerとは何か？なぜ必要か？ -->
+  <section class="mb-16">
+    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-10 border border-blue-100">
+      <!-- メインタイトルと概要 -->
+      <div class="mb-12">
+        <h2 class="text-center text-4xl font-bold text-gray-800 mb-6">🚀 SiTest Replacerとは何か？</h2>
+        <div class="mx-auto">
+          <p class="text-md text-gray-700 leading-relaxed mb-6">
+            <strong class="text-blue-600">SiTest Replacer</strong>は、SiTestでのHTML差し替え作業を<span class="bg-yellow-200 px-2 py-1 rounded font-semibold">劇的に効率化</span>する開発支援ツールです。<br>
+            従来の複雑で時間のかかる手作業を、<span class="text-green-600 font-semibold">自動化・可視化</span>することで、開発者の作業時間を<span class="text-red-600 font-bold">50%以上短縮</span>し、ヒューマンエラーを防ぎます。
+          </p>
+          <p class="text-lg text-gray-600 leading-relaxed">
+            特に、<strong>画像パスの自動置換機能</strong>や<strong>リアルタイムプレビュー機能</strong>により、SiTest管理画面での納品作業が<span class="text-purple-600 font-semibold">驚くほど簡単</span>になります。<br>
+            開発からテスト、納品まで、SiTestを使った全ての工程で作業効率が向上します。
+          </p>
+        </div>
+      </div>
+      <!-- プレビューモード切り替えボタン -->
+      <div class="mb-12">
+        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-8 border-2 border-emerald-200">
+          <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center flex items-center justify-center">
+            <span class="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center mr-3 text-lg">🔄</span>
+            開発・検証 ⇄ 納品作業の使い分け
+          </h3>
+          <div class="text-center mb-8">
+            <p class="text-lg text-gray-700 leading-relaxed mb-4">
+              <strong class="text-blue-600">通常モード</strong>で開発・検証を行い、<strong class="text-emerald-600">プレビューモード</strong>でSiTest納品作業を行います。<br>
+              <span class="bg-blue-100 px-2 py-1 rounded font-semibold">開発フェーズ</span>と<span class="bg-emerald-100 px-2 py-1 rounded font-semibold">納品フェーズ</span>でモードを使い分けることが重要です。
+            </p>
+            <p class="text-md text-gray-600">
+              プレビューモードは<strong>SiTest管理画面での設定時</strong>に、<span class="text-emerald-600 font-semibold">どの要素を選択すべきか</span>を視覚的に確認するために使用します。
+            </p>
+          </div>
+          <!-- プレビューモード切り替えボタン -->
+          <div class="flex flex-col lg:flex-row gap-6 justify-center items-center">
+            <!-- プレビューモード有効ボタン -->
+            <div class="flex-1 max-w-md">
+              <button id="enablePreviewBtn" onclick="togglePreviewMode(true)" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl group">
+                <div class="flex items-center justify-center">
+                  <svg class="w-6 h-6 mr-3 group-hover:animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  <div>
+                    <div class="text-lg">🎯 プレビューモード ON</div>
+                    <div class="text-sm opacity-90">SiTest納品作業時に使用</div>
+                  </div>
+                </div>
+              </button>
+              <p class="text-xs text-gray-600 mt-2 text-center">URLに ?preview が追加されます</p>
+            </div>
+            <!-- 区切り -->
+            <div class="flex items-center">
+              <div class="hidden lg:block w-px h-16 bg-gray-300"></div>
+              <div class="lg:hidden w-16 h-px bg-gray-300"></div>
+              <span class="bg-white text-gray-500 px-3 py-1 rounded-full text-sm font-medium mx-2">または</span>
+              <div class="hidden lg:block w-px h-16 bg-gray-300"></div>
+              <div class="lg:hidden w-16 h-px bg-gray-300"></div>
+            </div>
+            <!-- プレビューモード無効ボタン -->
+            <div class="flex-1 max-w-md">
+              <button id="disablePreviewBtn" onclick="togglePreviewMode(false)" class="w-full bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl group">
+                <div class="flex items-center justify-center">
+                  <svg class="w-6 h-6 mr-3 group-hover:animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                  </svg>
+                  <div>
+                    <div class="text-lg">🛠️ 通常モード ON</div>
+                    <div class="text-sm opacity-90">開発・検証作業時に使用</div>
+                  </div>
+                </div>
+              </button>
+              <p class="text-xs text-gray-600 mt-2 text-center">URLから ?preview が削除されます</p>
+            </div>
+          </div>
+          <!-- 現在のモード表示 -->
+          <div class="mt-8 text-center">
+            <div id="currentModeIndicator" class="inline-flex items-center px-6 py-3 rounded-lg text-sm font-medium">
+              <!-- JavaScriptで動的に更新 -->
+            </div>
+          </div>
+          <!-- 開発・納品の使い分け説明 -->
+          <div class="mt-8 grid md:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg p-6 border border-blue-200">
+              <h4 class="font-semibold text-blue-700 mb-3 flex items-center">
+                <span class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2 text-sm">🛠️</span>
+                通常モード（開発・検証フェーズ）
+              </h4>
+              <ul class="space-y-2 text-sm text-gray-600">
+                <li class="flex items-start">
+                  <span class="text-blue-500 mr-2 mt-0.5">🔧</span>
+                  <span><strong>HTML・CSS・JS開発</strong> - コーディング作業</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="text-blue-500 mr-2 mt-0.5">🔧</span>
+                  <span><strong>動作確認・デバッグ</strong> - ブラウザ標準機能で検証</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="text-blue-500 mr-2 mt-0.5">🔧</span>
+                  <span><strong>レスポンシブ対応</strong> - 各種デバイスでの表示確認</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="text-blue-500 mr-2 mt-0.5">🔧</span>
+                  <span><strong>機能テスト</strong> - JavaScript・アニメーション動作</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="text-blue-500 mr-2 mt-0.5">🔧</span>
+                  <span><strong>開発用ファイル管理</strong> - ローカル環境での作業</span>
+                </li>
+              </ul>
+            </div>
+            <div class="bg-white rounded-lg p-6 border border-emerald-200">
+              <h4 class="font-semibold text-emerald-700 mb-3 flex items-center">
+                <span class="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center mr-2 text-sm">🎯</span>
+                プレビューモード（SiTest納品フェーズ）
+              </h4>
+              <ul class="space-y-2 text-sm text-gray-600">
+                <li class="flex items-start">
+                  <span class="text-emerald-500 mr-2 mt-0.5">🎯</span>
+                  <span><strong>対象要素の特定</strong> - どの要素を選択すべきかハイライト表示</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="text-emerald-500 mr-2 mt-0.5">🎯</span>
+                  <span><strong>操作タイプの決定</strong> - outer/after/removeの選択</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="text-emerald-500 mr-2 mt-0.5">🎯</span>
+                  <span><strong>SiTest管理画面設定の準備</strong> - セレクター確認</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="text-emerald-500 mr-2 mt-0.5">🎯</span>
+                  <span><strong>設定値の検証</strong> - data-sitest-type属性の確認</span>
+                </li>
+                <li class="flex items-start">
+                  <span class="text-emerald-500 mr-2 mt-0.5">🎯</span>
+                  <span><strong>納品前最終チェック</strong> - 設定ミス防止</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- なぜ必要なのか？ -->
+      <div class="mb-12">
+        <h3 class="text-3xl font-bold text-gray-800 mb-8 text-center">⚠️ なぜSiTest Replacerが必要なのか？</h3>
+        <div class="grid lg:grid-cols-2 gap-10 text-sm">
+          <!-- 従来の問題点（詳細版） -->
+          <div class="bg-red-50 border-2 border-red-200 rounded-xl p-8">
+            <h4 class="text-2xl font-semibold text-red-800 mb-6 flex items-center">
+              <span class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-4 text-lg">😰</span>
+              従来の課題・問題点
+            </h4>
+            <div class="space-y-6">
+              <div class="flex items-start">
+                <span class="text-red-500 mr-4 mt-1 text-lg">❌</span>
+                <div>
+                  <h5 class="text-lg font-semibold text-red-700 mb-2">HTML差し替えが複雑で時間がかかる</h5>
+                  <p class="text-red-600 leading-relaxed">
+                    SiTestでのDOM操作は種類が多く（outerHTML、insertAfter等）、毎回設定方法を調べる必要があります。
+                    複数の操作を組み合わせる場合、設定が複雑になり、時間がかかります。
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <span class="text-red-500 mr-4 mt-1 text-lg">❌</span>
+                <div>
+                  <h5 class="text-lg font-semibold text-red-700 mb-2">画像パスの書き換えが手動で面倒</h5>
+                  <p class="text-red-600 leading-relaxed">
+                    開発時は「/sitest/img/photo.jpg」で作業しても、SiTest管理画面では「https://cdn.sitest.jp/uploads/photo.jpg」に変更する必要があります。
+                    全ファイルを手動で修正するのは非常に面倒で、修正漏れが発生しやすいです。
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <span class="text-red-500 mr-4 mt-1 text-lg">❌</span>
+                <div>
+                  <h5 class="text-lg font-semibold text-red-700 mb-2">プレビュー確認に時間がかかる</h5>
+                  <p class="text-red-600 leading-relaxed">
+                    SiTest管理画面でのプレビューは読み込みが遅く、修正→確認のサイクルが非効率です。
+                    特に複数の修正を行う場合、確認作業だけで多くの時間を消費します。
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <span class="text-red-500 mr-4 mt-1 text-lg">❌</span>
+                <div>
+                  <h5 class="text-lg font-semibold text-red-700 mb-2">ヒューマンエラーのリスク</h5>
+                  <p class="text-red-600 leading-relaxed">
+                    手作業による設定ミス、パス間違い、コピペミスなどが頻発します。
+                    特に納品直前のパス修正作業では、一つのミスがプロジェクト全体に影響することもあります。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- SiTest Replacerによる解決（詳細版） -->
+          <div class="bg-green-50 border-2 border-green-200 rounded-xl p-8">
+            <h4 class="text-2xl font-semibold text-green-800 mb-6 flex items-center">
+              <span class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4 text-lg">🎉</span>
+              SiTest Replacerによる解決
+            </h4>
+            <div class="space-y-6">
+              <div class="flex items-start">
+                <span class="text-green-500 mr-4 mt-1 text-lg">✅</span>
+                <div>
+                  <h5 class="text-lg font-semibold text-green-700 mb-2">開発時間を50%以上短縮</h5>
+                  <p class="text-green-600 leading-relaxed">
+                    <strong>SiTestで実際に使える3種類のDOM操作</strong>（outerHTML、insertAfter、remove）を統一的に管理。
+                    data-sitest-type属性で簡単指定でき、複数操作の順次実行も可能です。
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <span class="text-green-500 mr-4 mt-1 text-lg">✅</span>
+                <div>
+                  <h5 class="text-lg font-semibold text-green-700 mb-2">画像パス管理を完全自動化</h5>
+                  <p class="text-green-600 leading-relaxed">
+                    開発時のローカルパス（/sitest/img/）から本番のCDNパス（https://cdn.sitest.jp/uploads/）へ自動変換。
+                    手動修正は一切不要で、修正漏れの心配もありません。
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <span class="text-green-500 mr-4 mt-1 text-lg">✅</span>
+                <div>
+                  <h5 class="text-lg font-semibold text-green-700 mb-2">リアルタイムプレビューで即座に確認</h5>
+                  <p class="text-green-600 leading-relaxed">
+                    ?previewでプレビューモードを有効化。サイドメニューから各操作を個別実行・確認でき、
+                    素早いPDCAサイクルが可能です。修正→確認の時間が大幅に短縮されます。
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-start">
+                <span class="text-green-500 mr-4 mt-1 text-lg">✅</span>
+                <div>
+                  <h5 class="text-lg font-semibold text-green-700 mb-2">エラーリスクを大幅削減</h5>
+                  <p class="text-green-600 leading-relaxed">
+                    自動化により人的ミスを防止。デバッグ機能とエラーハンドリングで安定動作します。
+                    設定ミスやパス間違いなどのヒューマンエラーがほぼゼロになります。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 具体的な使用例 -->
+      <div class="bg-white rounded-xl p-8 border-2 border-gray-200">
+        <h3 class="text-2xl font-bold text-gray-800 mb-8 text-center">💡 具体的な使用例・実際の効果</h3>
+        <!-- パス置換の例 -->
+        <div class="mb-10">
+          <h4 class="text-xl font-semibold text-gray-800 mb-6 text-center">🔄 画像パス自動置換の実例</h4>
+          <div class="grid md:grid-cols-2 gap-8">
+            <div>
+              <h5 class="font-semibold text-red-700 mb-3 text-center">👎 開発時（ローカル環境）</h5>
+              <div class="bg-red-50 border border-red-200 p-4 rounded-lg">
+                <div class="text-sm font-mono space-y-2">
+                  <div>&lt;img src="<span class="text-red-600 font-bold">/sitest/img/hero-banner.jpg</span>"&gt;</div>
+                  <div>&lt;img src="<span class="text-red-600 font-bold">/sitest/img/product-01.png</span>"&gt;</div>
+                  <div>&lt;video src="<span class="text-red-600 font-bold">/sitest/img/demo.mp4</span>"&gt;</div>
+                </div>
+              </div>
+              <p class="text-xs text-red-600 mt-2 text-center">開発用のローカルパスで作業</p>
+            </div>
+            <div>
+              <h5 class="font-semibold text-green-700 mb-3 text-center">👍 本番時（SiTest管理画面）</h5>
+              <div class="bg-green-50 border border-green-200 p-4 rounded-lg">
+                <div class="text-sm font-mono space-y-2">
+                  <div>&lt;img src="<span class="text-green-600 font-bold">https://cdn.sitest.jp/uploads/hero-banner.jpg</span>"&gt;</div>
+                  <div>&lt;img src="<span class="text-green-600 font-bold">https://cdn.sitest.jp/uploads/product-01.png</span>"&gt;</div>
+                  <div>&lt;video src="<span class="text-green-600 font-bold">https://cdn.sitest.jp/uploads/demo.mp4</span>"&gt;</div>
+                </div>
+              </div>
+              <p class="text-xs text-green-600 mt-2 text-center">自動で本番URLに置換される</p>
+            </div>
+          </div>
+          <div class="text-center mt-6">
+            <div class="inline-flex items-center bg-blue-100 text-blue-800 px-6 py-3 rounded-lg text-lg font-semibold">
+              <span class="mr-3">🎯</span>
+              手動でのパス修正作業が完全不要！
+              <span class="ml-3">🎯</span>
+            </div>
+          </div>
+        </div>
+        <!-- 作業時間の比較 -->
+        <div class="grid md:grid-cols-3 gap-6">
+          <div class="text-center p-6 bg-blue-50 border border-blue-200 rounded-lg">
+            <div class="text-4xl font-bold text-blue-600 mb-3">50%</div>
+            <div class="font-semibold text-blue-800 mb-2">開発時間短縮</div>
+            <div class="text-sm text-blue-600">従来8時間 → 4時間で完了</div>
+          </div>
+          <div class="text-center p-6 bg-green-50 border border-green-200 rounded-lg">
+            <div class="text-4xl font-bold text-green-600 mb-3">90%</div>
+            <div class="font-semibold text-green-800 mb-2">エラー削減</div>
+            <div class="text-sm text-green-600">手作業ミスをほぼ撲滅</div>
+          </div>
+          <div class="text-center p-6 bg-purple-50 border border-purple-200 rounded-lg">
+            <div class="text-4xl font-bold text-purple-600 mb-3">70%</div>
+            <div class="font-semibold text-purple-800 mb-2">納品作業効率化</div>
+            <div class="text-sm text-purple-600">パス修正作業が不要</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- クイックスタート -->
+  <section class="mb-12">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800">🚀 クイックスタート</h2>
+    <div class="grid md:grid-cols-2 gap-8">
+      <!-- 基本的な使い方 -->
+      <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+        <h3 class="text-xl font-semibold mb-4 text-gray-800">1. 基本的なセットアップ</h3>
+        <div class="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <pre><code>&lt;!-- HTMLに読み込み --&gt;
+&lt;script src="/project/sitest/sitest-replacer.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+// 初期化
+new SiTestReplacer({
+  baseUrl: '/project/sitest/',  // HTMLファイルのベースURL
+  waitTime: 100,                // 追加待機時間（ミリ秒）
+  debug: false,                 // デバッグモード
+
+  // CSS管理設定
+  cssFile: 'css/sitest-style.css',  // CSSファイル名
+
+  // JavaScript管理設定
+  scriptFile: 'js/sitest-script.js', // スクリプトファイル名
+
+  // メディア置換設定
+  mediaReplacement: {
+    enabled: false,             // メディア置換機能の有効/無効
+    localPath: '/project/sitest/img/', // 開発時のローカルパス
+    productionPath: '',         // 本番のアップロード先パス
+  }
+}).init();
+&lt;/script&gt;</code></pre>
+        </div>
+      </div>
+      <!-- 基本的な属性 -->
+      <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+        <h3 class="text-xl font-semibold mb-4 text-gray-800">2. 基本的な属性</h3>
+        <div class="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm overflow-x-auto">
+          <pre><code>&lt;!-- outerHTML操作（要素全体を差し替え） --&gt;
+&lt;div data-sitest-type="outer" 
+     data-sitest-url="new-element.html"&gt;
+    差し替えられる要素
+&lt;/div&gt;
+
+&lt;!-- insertAfter操作（要素の直後に挿入） --&gt;
+&lt;div data-sitest-type="after" 
+     data-sitest-url="insert-content.html"&gt;
+    基準要素
+&lt;/div&gt;
+
+&lt;!-- remove操作（要素を非表示） --&gt;
+&lt;div data-sitest-type="remove"&gt;
+    削除される要素
+&lt;/div&gt;</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- SiTestブロックルール詳細 -->
+  <section class="mb-12">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800">🔒 SiTestブロックルール（重要）</h2>
+    <div class="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-8 border-2 border-red-200 mb-8">
+      <div class="flex items-center mb-6">
+        <span class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4 text-2xl">⚠️</span>
+        <div>
+          <h3 class="text-2xl font-bold text-red-800">既存サイトに影響しない設計が必須</h3>
+          <p class="text-red-600">すべてのSiTest要素は<code>.Sitest-block</code>内に配置し、スコープを制限してください</p>
+        </div>
+      </div>
+      <div class="grid lg:grid-cols-2 gap-8">
+        <!-- HTML構造ルール -->
+        <div class="bg-white rounded-lg p-6 border border-red-200">
+          <h4 class="font-semibold text-red-700 mb-4 flex items-center">
+            <span class="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center mr-2 text-sm">📦</span>
+            HTML構造ルール
+          </h4>
+          <div class="space-y-4">
+            <div>
+              <h5 class="font-medium text-gray-700 mb-2">✅ 正しい構造</h5>
+              <div class="bg-green-50 p-3 rounded border border-green-200 text-xs font-mono">
+                <div class="text-green-800">
+                  &lt;div class="Sitest-block"&gt;<br>
+                  &nbsp;&nbsp;&lt;section class="hero-section"&gt;<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&lt;h2&gt;タイトル&lt;/h2&gt;<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;&lt;p&gt;説明文&lt;/p&gt;<br>
+                  &nbsp;&nbsp;&lt;/section&gt;<br>
+                  &lt;/div&gt;
+                </div>
+              </div>
+            </div>
+            <div>
+              <h5 class="font-medium text-gray-700 mb-2">❌ 間違った構造</h5>
+              <div class="bg-red-50 p-3 rounded border border-red-200 text-xs font-mono">
+                <div class="text-red-800">
+                  &lt;!-- Sitest-blockなし --&gt;<br>
+                  &lt;section class="hero-section"&gt;<br>
+                  &nbsp;&nbsp;&lt;h2&gt;タイトル&lt;/h2&gt;<br>
+                  &lt;/section&gt;
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- CSS・JSスコープルール -->
+        <div class="bg-white rounded-lg p-6 border border-red-200">
+          <h4 class="font-semibold text-red-700 mb-4 flex items-center">
+            <span class="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center mr-2 text-sm">🎨</span>
+            CSS・JSスコープルール
+          </h4>
+          <div class="space-y-4">
+            <div>
+              <h5 class="font-medium text-gray-700 mb-2">✅ 正しいCSS</h5>
+              <div class="bg-green-50 p-3 rounded border border-green-200 text-xs font-mono">
+                <div class="text-green-800">
+                  .Sitest-block .hero-title {<br>
+                  &nbsp;&nbsp;font-size: 2rem;<br>
+                  }<br><br>
+                  .Sitest-block .cta-button {<br>
+                  &nbsp;&nbsp;background: #ff6b6b;<br>
+                  }
+                </div>
+              </div>
+            </div>
+            <div>
+              <h5 class="font-medium text-gray-700 mb-2">❌ 間違ったCSS</h5>
+              <div class="bg-red-50 p-3 rounded border border-red-200 text-xs font-mono">
+                <div class="text-red-800">
+                  .hero-title {<br>
+                  &nbsp;&nbsp;font-size: 2rem; /* 全体に影響 */<br>
+                  }<br><br>
+                  button {<br>
+                  &nbsp;&nbsp;background: #ff6b6b; /* 全体に影響 */<br>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- なぜ重要なのか -->
+      <div class="mt-6 bg-orange-50 p-4 rounded-lg border border-orange-200">
+        <h4 class="font-semibold text-orange-800 mb-3">🚨 なぜSiTestブロックルールが重要なのか？</h4>
+        <div class="grid md:grid-cols-2 gap-4 text-sm text-orange-700">
+          <div>
+            <h5 class="font-medium mb-2">既存サイトへの影響を防止</h5>
+            <ul class="space-y-1">
+              <li>• 既存のCSSスタイルが崩れない</li>
+              <li>• 既存のJavaScript動作に干渉しない</li>
+              <li>• 予期しないレイアウト崩れを防ぐ</li>
+            </ul>
+          </div>
+          <div>
+            <h5 class="font-medium mb-2">保守性・安全性の向上</h5>
+            <ul class="space-y-1">
+              <li>• SiTest要素の特定が容易</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- 操作タイプ一覧 -->
+  <section class="mb-12">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800">📝 操作タイプ一覧</h2>
+    <div class="grid lg:grid-cols-2 gap-6">
+      <!-- outerHTML -->
+      <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-green-600 text-white px-6 py-4">
+          <h3 class="text-xl font-semibold">outerHTML 操作</h3>
+          <p class="text-green-100 text-sm">要素全体を差し替え</p>
+        </div>
+        <div class="p-6">
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">HTMLの書き方:</h4>
+            <div class="bg-gray-100 p-3 rounded font-mono text-sm">
+              &lt;div data-sitest-type="outer" data-sitest-url="new-element.html"&gt;<br>
+              &nbsp;&nbsp;差し替えられる要素<br>
+              &lt;/div&gt;
+            </div>
+          </div>
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">動作:</h4>
+            <p class="text-gray-600 text-sm">要素全体を新しい要素に置き換えます。</p>
+          </div>
+          <!-- デモ -->
+          <div class="border-2 border-dashed border-green-300 p-4 rounded bg-green-50" data-sitest-type="outer" data-sitest-url="outerhtml-demo.html">
+            <div class="text-center py-8">
+              <div class="text-gray-500 text-4xl mb-2">🔄</div>
+              <p class="text-gray-600">outerHTML操作のデモ</p>
+              <p class="text-sm text-gray-500">この要素全体が差し替えられます</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- insertAfter -->
+      <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-purple-600 text-white px-6 py-4">
+          <h3 class="text-xl font-semibold">insertAfter 操作</h3>
+          <p class="text-purple-100 text-sm">要素の直後に挿入</p>
+        </div>
+        <div class="p-6">
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">HTMLの書き方:</h4>
+            <div class="bg-gray-100 p-3 rounded font-mono text-sm">
+              &lt;div data-sitest-type="after" data-sitest-url="insert-content.html"&gt;<br>
+              &nbsp;&nbsp;基準要素<br>
+              &lt;/div&gt;
+            </div>
+          </div>
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">動作:</h4>
+            <p class="text-gray-600 text-sm">要素の直後に新しいコンテンツを挿入します。元の要素は残ります。</p>
+          </div>
+          <!-- デモ -->
+          <div class="border-2 border-dashed border-purple-300 p-4 rounded bg-purple-50" data-sitest-type="after" data-sitest-url="after-demo.html">
+            <div class="text-center py-8">
+              <div class="text-gray-500 text-4xl mb-2">➕</div>
+              <p class="text-gray-600">insertAfter操作のデモ</p>
+              <p class="text-sm text-gray-500">この要素の直後に挿入されます</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- remove -->
+      <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-red-600 text-white px-6 py-4">
+          <h3 class="text-xl font-semibold">remove 操作</h3>
+          <p class="text-red-100 text-sm">要素を非表示</p>
+        </div>
+        <div class="p-6">
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">HTMLの書き方:</h4>
+            <div class="bg-gray-100 p-3 rounded font-mono text-sm">
+              &lt;div data-sitest-type="remove"&gt;<br>
+              &nbsp;&nbsp;削除される要素<br>
+              &lt;/div&gt;
+            </div>
+          </div>
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">動作:</h4>
+            <p class="text-gray-600 text-sm">要素を非表示にします（display: none）。URLは不要です。</p>
+          </div>
+          <!-- デモ -->
+          <div class="border-2 border-dashed border-red-300 p-4 rounded bg-red-50" data-sitest-type="remove">
+            <div class="text-center py-8">
+              <div class="text-gray-500 text-4xl mb-2">🗑️</div>
+              <p class="text-gray-600">remove操作のデモ</p>
+              <p class="text-sm text-gray-500">この要素が非表示になります</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 複数操作 -->
+      <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div class="bg-indigo-600 text-white px-6 py-4">
+          <h3 class="text-xl font-semibold">複数操作（1つの要素に複数指定）</h3>
+          <p class="text-indigo-100 text-sm">順次実行される操作（最大10個まで）</p>
+        </div>
+        <div class="p-6">
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">HTMLの書き方:</h4>
+            <div class="bg-gray-100 p-3 rounded font-mono text-sm">
+              &lt;div data-sitest-type="outer" data-sitest-url="content1.html"<br>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data-sitest-type-2="after" data-sitest-url-2="content2.html"&gt;<br>
+              &nbsp;&nbsp;元のコンテンツ<br>
+              &lt;/div&gt;
+            </div>
+          </div>
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">実行順序:</h4>
+            <div class="space-y-2 text-sm">
+              <div class="flex items-center">
+                <span class="bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3">1</span>
+                <span>data-sitest-type="outer" → 要素を差し替え</span>
+              </div>
+              <div class="flex items-center">
+                <span class="bg-purple-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-3">2</span>
+                <span>data-sitest-type-2="after" → 要素の直後に挿入</span>
+              </div>
+            </div>
+          </div>
+          <div class="mb-4">
+            <h4 class="font-semibold text-gray-700 mb-2">注意点:</h4>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li>• 番号は連続している必要はありません（type-5、type-10も可能）</li>
+              <li>• 最大10個まで指定可能</li>
+              <li>• remove操作が含まれる場合、それ以降の操作はスキップされます</li>
+              <li>• outerHTML操作後は要素が置き換わるため、後続操作は新しい要素に対して実行</li>
+            </ul>
+          </div>
+          <!-- デモ -->
+          <div class="border-2 border-dashed border-indigo-300 p-4 rounded bg-indigo-50" data-sitest-type="outer" data-sitest-url="multi-1.html" data-sitest-type-2="after" data-sitest-url-2="multi-2.html">
+            <div class="text-center py-8">
+              <div class="text-gray-500 text-4xl mb-2">🔢</div>
+              <p class="text-gray-600">複数操作のデモ</p>
+              <p class="text-sm text-gray-500">1. outerHTML → 2. insertAfter</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- 設定オプション -->
+  <section class="mb-12">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800">⚙️ 設定オプション詳細</h2>
+    <div class="grid lg:grid-cols-2 gap-8">
+      <!-- 基本設定 -->
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">基本設定</h3>
+        <div class="space-y-4">
+          <div class="border-l-4 border-blue-500 pl-4">
+            <h4 class="font-medium text-gray-700">baseUrl</h4>
+            <p class="text-sm text-gray-600 mb-2">HTMLファイルのベースURL</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded block">baseUrl: './' // 相対パス</code>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded block">baseUrl: 'https://example.com/sitest/' // 絶対URL</code>
+          </div>
+          <div class="border-l-4 border-green-500 pl-4">
+            <h4 class="font-medium text-gray-700">debug</h4>
+            <p class="text-sm text-gray-600 mb-2">デバッグモード（コンソールログ出力）</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">debug: true</code>
+          </div>
+          <div class="border-l-4 border-purple-500 pl-4">
+            <h4 class="font-medium text-gray-700">previewMode</h4>
+            <p class="text-sm text-gray-600 mb-2">プレビューモード（サイドメニュー表示）</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">previewMode: true</code>
+            <p class="text-xs text-gray-500 mt-1">URLパラメータ ?preview でも有効化可能</p>
+          </div>
+          <div class="border-l-4 border-yellow-500 pl-4">
+            <h4 class="font-medium text-gray-700">waitTime</h4>
+            <p class="text-sm text-gray-600 mb-2">操作前の待機時間（ミリ秒）</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">waitTime: 500</code>
+          </div>
+        </div>
+      </div>
+      <!-- CSS管理設定（ユーザーファースト） -->
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">🎨 CSS管理設定</h3>
+        <!-- 外部ファイル管理の重要性 -->
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <h4 class="font-semibold text-yellow-800 mb-3 flex items-center">
+            <span class="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center mr-2 text-sm">💡</span>
+            なぜ外部ファイルでCSS管理するのか？
+          </h4>
+          <div class="space-y-2 text-sm text-yellow-700">
+            <p><strong>• SiTestでのCSS修正は頻繁に発生します</strong> - レスポンシブ対応、デザイン調整等</p>
+            <p><strong>• 複数のCSSをまとめて追加・修正する方が効率的</strong> - 一つ一つSiTest管理画面で編集は非効率</p>
+            <p><strong>• バージョン管理が容易</strong> - Git等での履歴管理、チーム開発が可能</p>
+            <p><strong>• 開発環境と本番環境の一元管理</strong> - ファイル管理の統一化</p>
+          </div>
+        </div>
+        <div class="space-y-4">
+          <div class="border-l-4 border-pink-500 pl-4">
+            <h4 class="font-medium text-gray-700">cssFile</h4>
+            <p class="text-sm text-gray-600 mb-2">外部CSSファイルの指定</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded block">cssFile: 'css/sitest-style.css'</code>
+          </div>
+          <div class="border-l-4 border-indigo-500 pl-4">
+            <h4 class="font-medium text-gray-700">autoInjectCSS</h4>
+            <p class="text-sm text-gray-600 mb-2">CSS自動挿入（&lt;style&gt;タグで追加）</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">autoInjectCSS: true</code>
+            <div class="bg-blue-50 p-2 rounded text-xs mt-2">
+              <strong>📋 SiTest本番環境での使用方法:</strong><br>
+              • 開発時: 外部CSSファイルで管理<br>
+              • 本番時: &lt;style&gt;タグで適切な箇所で挿入<br>
+              <strong>🔒 重要: .Sitest-block 配下のみに適用</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- JavaScript管理設定 -->
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">JavaScript管理設定</h3>
+        <div class="space-y-4">
+          <div class="border-l-4 border-red-500 pl-4">
+            <h4 class="font-medium text-gray-700">scriptFile</h4>
+            <p class="text-sm text-gray-600 mb-2">外部JavaScriptファイルの指定</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded block">scriptFile: 'js/sitest-script.js'</code>
+            <div class="bg-red-50 p-2 rounded text-xs mt-2">
+              <strong>💡 推奨される使い方:</strong><br>
+              • 外部ファイルで管理してバージョン管理<br>
+              • SiTest管理画面の「JavaScript」欄にコピペ
+            </div>
+          </div>
+          <div class="border-l-4 border-orange-500 pl-4">
+            <h4 class="font-medium text-gray-700">executeAfterAllReplacements</h4>
+            <p class="text-sm text-gray-600 mb-2">全差し替え完了後にスクリプト実行</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">executeAfterAllReplacements: true</code>
+            <div class="bg-orange-50 p-2 rounded text-xs mt-2">
+              <strong>🎯 実行タイミング:</strong><br>
+              1. 全てのHTML差し替えが完了<br>
+              2. DOMが確定した状態<br>
+              3. サイトスクリプト（sitest-script.js）を実行<br>
+              4. SiTest管理画面の「Javascript」欄と同一内容
+            </div>
+          </div>
+          <div class="border-l-4 border-teal-500 pl-4">
+            <h4 class="font-medium text-gray-700">executeScripts</h4>
+            <p class="text-sm text-gray-600 mb-2">挿入HTML内の&lt;script&gt;タグ実行</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">executeScripts: true</code>
+          </div>
+        </div>
+        <!-- JavaScript実装例 -->
+        <div class="bg-gray-50 rounded-lg p-4 mt-6">
+          <h4 class="font-semibold text-gray-800 mb-3">📝 JavaScript実装例（注意点を考慮）</h4>
+          <div class="bg-gray-900 text-green-400 p-3 rounded font-mono text-xs">
+            <pre>// ❌ 悪い例: 全体に影響する
+document.addEventListener('click', function() { ... });
+
+// ✅ 良い例: SiTestブロック内のみに限定
+const sitestBlocks = document.querySelectorAll('.Sitest-block');
+sitestBlocks.forEach(block => {
+  // CTAボタンクリック追跡
+  const ctaButtons = block.querySelectorAll('.cta-button');
+  ctaButtons.forEach(button => {
+    button.addEventListener('click', function(e) {
+      // アナリティクス送信
+      gtag('event', 'click', {
+        event_category: 'cta_button',
+        event_label: this.textContent.trim()
+      });
+    });
+  });
+  
+  // フォーム送信処理
+  const forms = block.querySelectorAll('form');
+  forms.forEach(form => {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      // SiTestブロック内のフォーム処理
+    });
+  });
+});</pre>
+          </div>
+        </div>
+      </div>
+      <!-- メディア置換設定 -->
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">🖼️ メディア置換設定</h3>
+        <div class="space-y-4">
+          <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border-l-4 border-blue-500">
+            <h4 class="font-medium text-gray-700 mb-2">なぜメディア置換が必要？</h4>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li>• <strong>開発時</strong>: ローカルパス（/dev/img/photo.jpg）で作業</li>
+              <li>• <strong>納品時</strong>: SiTest管理画面で画像アップロード後のパスに自動変換</li>
+              <li>• <strong>メリット</strong>: パス書き換え作業が不要、納品がスムーズ</li>
+            </ul>
+          </div>
+          <div class="border-l-4 border-emerald-500 pl-4">
+            <h4 class="font-medium text-gray-700">enabled</h4>
+            <p class="text-sm text-gray-600 mb-2">メディア置換機能の有効/無効</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">enabled: true</code>
+          </div>
+          <div class="border-l-4 border-cyan-500 pl-4">
+            <h4 class="font-medium text-gray-700">localPath</h4>
+            <p class="text-sm text-gray-600 mb-2">開発時のローカルパス</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">localPath: '/sitest/img/'</code>
+          </div>
+          <div class="border-l-4 border-violet-500 pl-4">
+            <h4 class="font-medium text-gray-700">productionPath</h4>
+            <p class="text-sm text-gray-600 mb-2">本番のアップロード先パス</p>
+            <code class="text-xs bg-gray-100 px-2 py-1 rounded">productionPath: 'https://cdn.sitest.jp/uploads/'</code>
+          </div>
+          <div class="bg-emerald-50 p-3 rounded text-xs">
+            <strong>🔄 変換例:</strong><br>
+            <span class="text-red-600">/sitest/img/photo.jpg</span> →<br>
+            <span class="text-green-600">https://cdn.sitest.jp/uploads/photo.jpg</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- 完全な設定例 -->
+  <section class="mb-12">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800">📋 完全な設定例</h2>
+    <div class="grid lg:grid-cols-2 gap-8">
+      <!-- 開発環境設定 -->
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">🛠️ 開発環境設定</h3>
+        <div class="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-xs overflow-x-auto">
+          <pre><code>// 開発時の設定
+new SiTestReplacer({
+  // 基本設定
+  baseUrl: '/project/sitest/',
+  debug: true,           // デバッグログ有効
+  waitTime: 100,         // 待機時間
+  
+  // CSS管理
+  cssFile: 'css/sitest-style.css',
+  
+  // JavaScript管理
+  scriptFile: 'js/sitest-script.js',
+  
+  // メディア置換（開発用）
+  mediaReplacement: {
+    enabled: false, // 納品時にtrue設定
+    localPath: '/project/sitest/img/',
+    productionPath: '' // 納品時に設定
+  }
+}).init();</code></pre>
+        </div>
+      </div>
+    </div>
+    <!-- プレビューモードでの確認手順 -->
+    <div class="mt-8 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-8 border-2 border-emerald-200">
+      <h3 class="text-2xl font-semibold mb-6 text-gray-800 text-center">🎯 プレビューモードでの確認手順</h3>
+      <div class="grid lg:grid-cols-3 gap-6">
+        <!-- HTML差し替え確認 -->
+        <div class="bg-white rounded-lg p-6 border-2 border-red-200">
+          <h4 class="font-semibold text-red-700 mb-4 flex items-center">
+            <span class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3 text-lg">🔴</span>
+            HTML差し替え確認
+          </h4>
+          <div class="space-y-3 text-sm text-gray-600">
+            <div class="bg-red-50 p-3 rounded border border-red-200">
+              <p class="font-semibold text-red-800 mb-2">要素一覧エリア（要素ごと）</p>
+              <ul class="space-y-1">
+                <li>• 各要素の「<strong>実行</strong>」ボタンで個別テスト</li>
+                <li>• DOM差し替えの動作を1つずつ確認</li>
+                <li>• 「元に戻す」で復元可能</li>
+                <li>• 要素選択が正しいかチェック</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <!-- CSS確認 -->
+        <div class="bg-white rounded-lg p-6 border-2 border-blue-200">
+          <h4 class="font-semibold text-blue-700 mb-4 flex items-center">
+            <span class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3 text-lg">🔵</span>
+            CSS内容確認
+          </h4>
+          <div class="space-y-3 text-sm text-gray-600">
+            <div class="bg-blue-50 p-3 rounded border border-blue-200">
+              <p class="font-semibold text-blue-800 mb-2">CSS表示ボタン（一括操作）</p>
+              <ul class="space-y-1">
+                <li>• 「<strong>CSS表示</strong>」ボタンで内容確認</li>
+                <li>• 別Windowでスタイル内容を表示</li>
+                <li>• メディアパス置換結果も確認</li>
+                <li>• SiTest管理画面コピペ用</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <!-- JavaScript確認 -->
+        <div class="bg-white rounded-lg p-6 border-2 border-green-200">
+          <h4 class="font-semibold text-green-700 mb-4 flex items-center">
+            <span class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3 text-lg">🟢</span>
+            JavaScript内容確認
+          </h4>
+          <div class="space-y-3 text-sm text-gray-600">
+            <div class="bg-green-50 p-3 rounded border border-green-200">
+              <p class="font-semibold text-green-800 mb-2">JS表示ボタン（一括操作）</p>
+              <ul class="space-y-1">
+                <li>• 「<strong>JS表示</strong>」ボタンで内容確認</li>
+                <li>• 別WindowでJavaScript内容を表示</li>
+                <li>• 全差し替え完了後の実行コード</li>
+                <li>• SiTest管理画面コピペ用</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 実際の作業フロー -->
+      <div class="mt-8 bg-white rounded-lg p-6 border border-gray-200">
+        <h4 class="text-lg font-semibold text-gray-800 mb-4 text-center">💼 実際のSiTest納品フロー</h4>
+        <div class="flex flex-wrap justify-center items-center gap-4 text-sm">
+          <div class="bg-red-100 text-red-800 px-4 py-2 rounded-lg font-semibold">1️⃣ 要素一覧で確認</div>
+          <div class="text-gray-400">→</div>
+          <div class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold">2️⃣ CSS表示で確認</div>
+          <div class="text-gray-400">→</div>
+          <div class="bg-green-100 text-green-800 px-4 py-2 rounded-lg font-semibold">3️⃣ JS表示で確認</div>
+          <div class="text-gray-400">→</div>
+          <div class="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg font-semibold">4️⃣ SiTest管理画面で設定</div>
+        </div>
+        <p class="text-xs text-gray-600 text-center mt-4">
+          各ボタンで確認した内容をSiTest管理画面の対応するタブにコピー&ペースト
+        </p>
+      </div>
+    </div>
+  </section>
+  <!-- URLパラメータ -->
+  <section class="mb-12">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800">🔗 URLパラメータ</h2>
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <div class="space-y-4">
+        <div class="border-l-4 border-blue-500 pl-4">
+          <h3 class="font-semibold text-gray-800">?preview</h3>
+          <p class="text-gray-600">プレビューモードを有効化（サイドメニュー表示）</p>
+          <code class="text-sm bg-gray-100 px-2 py-1 rounded">https://example.com/page.html?preview</code>
+        </div>
+        <div class="border-l-4 border-green-500 pl-4">
+          <h3 class="font-semibold text-gray-800">?delivery</h3>
+          <p class="text-gray-600">プレビューモードを有効化（deliveryパラメータ）</p>
+          <code class="text-sm bg-gray-100 px-2 py-1 rounded">https://example.com/page.html?delivery</code>
+        </div>
+        <div class="border-l-4 border-purple-500 pl-4">
+          <h3 class="font-semibold text-gray-800">?sitest-preview</h3>
+          <p class="text-gray-600">SiTest専用プレビューパラメータ</p>
+          <code class="text-sm bg-gray-100 px-2 py-1 rounded">https://example.com/page.html?sitest-preview</code>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- ワークフロー -->
+  <section class="mb-12">
+    <h2 class="text-3xl font-bold mb-6 text-gray-800">🔄 開発〜納品ワークフロー</h2>
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <div class="space-y-8">
+        <!-- 開発コーディングフェーズ -->
+        <div class="border-l-4 border-blue-500 pl-6">
+          <h3 class="text-xl font-semibold text-gray-800 mb-4">🛠️ 開発コーディングフェーズ（通常モード）</h3>
+          <!-- SiTestブロックルール -->
+          <div class="bg-blue-50 p-6 rounded-lg mb-6 border-l-4 border-blue-400">
+            <h4 class="font-semibold text-blue-800 mb-4 flex items-center">
+              <span class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3 text-lg">🔒</span>
+              重要：SiTestブロックルール
+            </h4>
+            <div class="grid md:grid-cols-2 gap-6">
+              <div>
+                <h5 class="font-medium text-blue-700 mb-3">📦 SiTestブロック内に配置</h5>
+                <ul class="text-sm text-blue-600 space-y-2">
+                  <li>• <strong>すべての差し替えHTML</strong>はSiTestブロック内に配置</li>
+                  <li>• <strong>CSS</strong>もSiTestブロック配下の要素のみに適用</li>
+                  <li>• <strong>JavaScript</strong>もSiTestブロック内のみで動作</li>
+                  <li>• <strong>既存サイトに影響を与えない</strong>設計</li>
+                </ul>
+              </div>
+              <div>
+                <h5 class="font-medium text-blue-700 mb-3">🎯 スコープ制限の実装</h5>
+                <div class="bg-blue-100 p-3 rounded text-xs font-mono">
+                  <div class="text-blue-800">
+                    <div><strong>HTML:</strong></div>
+                    <div>&lt;div class="Sitest-block"&gt;</div>
+                    <div>&nbsp;&nbsp;&lt;!-- 差し替え内容 --&gt;</div>
+                    <div>&lt;/div&gt;</div>
+                    <br>
+                    <div><strong>CSS:</strong></div>
+                    <div>.Sitest-block .btn { ... }</div>
+                    <br>
+                    <div><strong>JS:</strong></div>
+                    <div>document.querySelector('.Sitest-block')</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="grid md:grid-cols-2 gap-6">
+            <div>
+              <h4 class="font-medium text-gray-700 mb-2">ファイル構成</h4>
+              <div class="bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono">
+                <pre>project/
+├── index_sitest.html          # メインページ
+└── sitest/                    # SiTest専用ディレクトリ
+    ├── sitest-replacer.js    # メイン本体ファイル
+    ├── hero.html             # 差し替え用HTMLファイル
+    ├── cta.html              # 差し替え用HTMLファイル
+    ├── footer.html           # 差し替え用HTMLファイル
+    ├── img/                  # SiTest用画像
+    │   ├── hero-banner.jpg
+    │   ├── product-01.png
+    │   └── demo-video.mp4
+    ├── css/                  # CSS管理
+    │   └── sitest-style.css
+    └── js/                   # JavaScript管理
+        └── sitest-script.js</pre>
+              </div>
+            </div>
+            <div>
+              <h4 class="font-medium text-gray-700 mb-2">開発時の設定</h4>
+              <div class="bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono">
+                <pre>new SiTestReplacer({
+  baseUrl: '/sitest/',  // sitestディレクトリを指定
+  debug: true,
+  previewMode: true,
+  
+  // メディア置換（開発用パス）
+  mediaReplacement: {
+    enabled: true,
+    localPath: '/sitest/img/',
+    productionPath: '' // 後で設定
+  }
+}).init();</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- テストフェーズ -->
+        <div class="border-l-4 border-yellow-500 pl-6">
+          <h3 class="text-xl font-semibold text-gray-800 mb-4">🧪 検証フェーズ（通常モード）</h3>
+          <div class="space-y-4">
+            <div class="bg-yellow-50 p-4 rounded-lg">
+              <h4 class="font-medium text-gray-700 mb-2">プレビューモードでテスト</h4>
+              <ul class="text-sm text-gray-600 space-y-1">
+                <li>• <code>?preview</code> でサイドメニュー表示</li>
+                <li>• 各操作を個別に実行・確認</li>
+                <li>• CSS・JavaScriptの動作確認</li>
+                <li>• レスポンシブ対応チェック</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <!-- 納品フェーズ -->
+        <div class="border-l-4 border-green-500 pl-6">
+          <h3 class="text-xl font-semibold text-gray-800 mb-4">🚀 納品フェーズ（プレビューモード活用）</h3>
+          <div class="grid md:grid-cols-4 gap-4">
+            <!-- ステップ1: 画像アップロード・設定更新 -->
+            <div class="bg-green-50 p-4 rounded-lg">
+              <h4 class="font-medium text-gray-700 mb-2 flex items-center">
+                <span class="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span>
+                画像アップロード・設定更新
+              </h4>
+              <ul class="text-sm text-gray-600 space-y-1">
+                <li>• <strong>SiTest用画像</strong>をアップロード</li>
+                <li>• <strong>アップロード後のパス</strong>を確認</li>
+                <li>• <code>productionPath</code>に設定</li>
+                <li>• <code>mediaReplacement.enabled: true</code>に変更</li>
+              </ul>
+            </div>
+            <!-- ステップ2: プレビューモードで確認 -->
+            <div class="bg-green-50 p-4 rounded-lg">
+              <h4 class="font-medium text-gray-700 mb-2 flex items-center">
+                <span class="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">2</span>
+                プレビューモードで確認
+              </h4>
+              <ul class="text-sm text-gray-600 space-y-1">
+                <li>• <strong>要素一覧エリア</strong>で対象要素を特定</li>
+                <li>• <strong>CSS表示ボタン</strong>でスタイル確認</li>
+                <li>• <strong>JS表示ボタン</strong>でスクリプト確認</li>
+                <li>• <strong>画像パス置換</strong>が正常か確認</li>
+              </ul>
+            </div>
+            <!-- ステップ3: SiTest管理画面設定 -->
+            <div class="bg-green-50 p-4 rounded-lg">
+              <h4 class="font-medium text-gray-700 mb-2 flex items-center">
+                <span class="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">3</span>
+                SiTest管理画面設定
+              </h4>
+              <ul class="text-sm text-gray-600 space-y-1">
+                <li>• プレビューモードを<strong>参考に</strong>しながら設定</li>
+                <li>• <strong>HTMLタブ</strong>: SiTest Replacer設定</li>
+                <li>• <strong>CSSタブ</strong>: CSS表示の内容を貼り付け</li>
+                <li>• <strong>JavaScriptタブ</strong>: JS表示の内容を貼り付け</li>
+              </ul>
+            </div>
+            <!-- ステップ4: 本番テスト -->
+            <div class="bg-green-50 p-4 rounded-lg">
+              <h4 class="font-medium text-gray-700 mb-2 flex items-center">
+                <span class="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">4</span>
+                SiTest本番テスト
+              </h4>
+              <ul class="text-sm text-gray-600 space-y-1">
+                <li>• <strong>SiTest管理画面</strong>でプレビュー確認</li>
+                <li>• 全DOM操作が正常実行されるか</li>
+                <li>• CSS・JavaScriptの動作確認</li>
+                <li>• レスポンシブ・ブラウザ対応確認</li>
+              </ul>
+            </div>
+          </div>
+          <!-- プレビューモード活用の効果 -->
+          <div class="mt-6 bg-emerald-50 p-4 rounded-lg border-l-4 border-emerald-500">
+            <h4 class="font-semibold text-gray-700 mb-2">🎯 プレビューモード活用の効果</h4>
+            <div class="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <h5 class="font-medium text-gray-700">従来の方法（直接SiTest設定）</h5>
+                <ul class="text-gray-600 space-y-1">
+                  <li>• SiTest管理画面で試行錯誤しながら設定</li>
+                  <li>• 要素選択ミス・操作タイプ選択ミス</li>
+                  <li>• 設定→確認→修正の繰り返しで時間がかかる</li>
+                  <li>• CSS・JSの内容確認が困難</li>
+                </ul>
+              </div>
+              <div>
+                <h5 class="font-medium text-gray-700">SiTest Replacer（プレビューモード活用）</h5>
+                <ul class="text-gray-600 space-y-1">
+                  <li>• <strong>事前に対象要素を正確に特定</strong>できる</li>
+                  <li>• <strong>CSS・JavaScript内容を事前確認</strong>可能</li>
+                  <li>• <strong>設定ミスを防いで一発で成功</strong></li>
+                  <li>• <strong>納品作業の時間を大幅短縮</strong></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<!-- フッター -->
+<footer class="bg-gradient-to-r from-gray-800 to-gray-900 text-white py-12 mt-12">
+  <div class="container mx-auto px-6">
+    <div class="grid md:grid-cols-4 gap-8">
+      <!-- SiTest Replacer情報 -->
+      <div>
+        <h3 class="text-xl font-bold mb-4">SiTest Replacer</h3>
+        <p class="text-gray-300 text-sm mb-4">
+          SiTestのDOM操作を効率化する開発ツール。
+          プレビュー機能とメディア管理で納品作業を劇的に改善。
+        </p>
+        <div class="flex space-x-2">
+          <span class="bg-blue-600 text-xs px-2 py-1 rounded">v1.0</span>
+          <span class="bg-green-600 text-xs px-2 py-1 rounded">Active</span>
+        </div>
+      </div>
+      <!-- 機能一覧 -->
+      <div>
+        <h4 class="text-lg font-semibold mb-4">主要機能</h4>
+        <ul class="text-gray-300 text-sm space-y-2">
+          <li>• outerHTML/insertAfter操作</li>
+          <li>• 要素削除（remove）</li>
+          <li>• 複数操作の順次実行</li>
+          <li>• CSS・JS自動管理</li>
+          <li>• メディアパス自動置換</li>
+        </ul>
+      </div>
+      <!-- 対応環境 -->
+      <div>
+        <h4 class="text-lg font-semibold mb-4">対応環境</h4>
+        <ul class="text-gray-300 text-sm space-y-2">
+          <li>• モダンブラウザ対応</li>
+          <li>• レスポンシブデザイン</li>
+          <li>• SiTest管理画面</li>
+          <li>• プレビューモード</li>
+          <li>• デバッグ機能</li>
+          <li>• エラーハンドリング</li>
+        </ul>
+      </div>
+      <!-- クイックリンク -->
+      <div>
+        <h4 class="text-lg font-semibold mb-4">クイックアクセス</h4>
+        <div class="space-y-3">
+          <div>
+            <p class="text-gray-300 text-sm mb-2">プレビューモード:</p>
+            <code class="bg-gray-700 text-green-400 text-xs px-2 py-1 rounded">?preview</code>
+          </div>
+          <div>
+            <p class="text-gray-300 text-sm mb-2">デバッグモード:</p>
+            <code class="bg-gray-700 text-yellow-400 text-xs px-2 py-1 rounded">debug: true</code>
+          </div>
+          <div>
+            <p class="text-gray-300 text-sm mb-2">基本属性:</p>
+            <code class="bg-gray-700 text-blue-400 text-xs px-2 py-1 rounded">data-sitest-type</code>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 著作権・使用方法 -->
+    <div class="border-t border-gray-700 mt-8 pt-8 text-center">
+      <div class="mb-4">
+        <div class="flex flex-wrap justify-center items-center space-x-6 text-sm text-gray-400">
+          <span>💻 プレビューモードで右側のサイドメニューから操作を実行</span>
+          <span>🎨 Tailwind CSS + カスタムスタイル</span>
+          <span>⚡ JavaScript自動実行対応</span>
+        </div>
+      </div>
+      <p class="text-gray-400 text-sm">
+        &copy; 2024 SiTest Replacer.
+        開発効率化・納品作業改善のための専用ツール.
+        <span class="text-green-400">Ready for Production</span>
+      </p>
+    </div>
+  </div>
+</footer>
+<!-- SiTest Replacer読み込み -->
+<script src="../sitest-replacer.js"></script>
+<script>
+// プレビューモード切り替え機能
+function togglePreviewMode(enable) {
+  const currentUrl = window.location.href;
+  const url = new URL(currentUrl);
+  
+  if (enable) {
+    // プレビューモードON: ?preview を追加
+    url.searchParams.set('preview', '');
+    
+    // ボタンにローディング状態を表示
+    const btn = document.getElementById('enablePreviewBtn');
+    if (btn) {
+      btn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          プレビューモードを有効化中...
+        </div>
+      `;
+      btn.disabled = true;
+    }
+    
+    // 少し遅延してから移動（視覚的なフィードバック）
+    setTimeout(() => {
+      window.location.href = url.toString();
+    }, 800);
+    
+  } else {
+    // プレビューモードOFF: ?preview を削除
+    url.searchParams.delete('preview');
+    url.searchParams.delete('delivery');
+    url.searchParams.delete('sitest-preview');
+    
+    // ボタンにローディング状態を表示
+    const btn = document.getElementById('disablePreviewBtn');
+    if (btn) {
+      btn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          通常モードに切り替え中...
+        </div>
+      `;
+      btn.disabled = true;
+    }
+    
+    // 少し遅延してから移動
+    setTimeout(() => {
+      window.location.href = url.toString();
+    }, 800);
+  }
+}
+
+// 現在のプレビューモード状態を確認
+function getCurrentPreviewMode() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.has('preview') || urlParams.has('delivery') || urlParams.has('sitest-preview');
+}
+
+// プレビューモード状態表示を更新
+function updateModeIndicator() {
+  const indicator = document.getElementById('currentModeIndicator');
+  if (!indicator) return;
+  
+  const isPreviewMode = getCurrentPreviewMode();
+  
+  if (isPreviewMode) {
+    indicator.className = 'inline-flex items-center px-6 py-3 rounded-lg text-sm font-medium bg-emerald-100 text-emerald-800 border border-emerald-200';
+    indicator.innerHTML = `
+      <svg class="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+      </svg>
+      <span class="font-semibold">🎮 プレビューモード有効</span>
+      <span class="ml-2 text-xs bg-emerald-200 px-2 py-1 rounded">SiTest納品作業モード</span>
+    `;
+  } else {
+    indicator.className = 'inline-flex items-center px-6 py-3 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 border border-gray-200';
+    indicator.innerHTML = `
+      <svg class="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/>
+      </svg>
+      <span class="font-semibold">👁️ 通常モード</span>
+      <span class="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">開発・検証作業モード</span>
+    `;
+  }
+}
+
+// プレビューモードで開く関数（レガシー関数として維持）
+function openPreviewMode() {
+  togglePreviewMode(true);
+}
+
+// SiTest Replacer初期化
+new SiTestReplacer({
+  baseUrl: './sitest/',
+  debug: true,
+  
+  // CSS管理設定
+  cssFile: 'css/sitest-style.css', // CSSファイル名
+  // JavaScript管理設定
+  scriptFile: 'js/sitest-script.js', // スクリプトファイル名
+
+  // メディア置換設定
+  mediaReplacement: {
+    enabled: true,
+    localPath: '/dev/img/',
+    productionPath: 'https://cdn.example.com/img/'
+  }
+}).init();
+// sitest-replacer.js ダウンロード機能
+async function downloadSiTestReplacer() {
+  try {
+    const response = await fetch('../sitest-replacer.js');
+    const content = await response.text();
+    downloadFile('sitest-replacer.js', content, 'application/javascript');
+
+    // ダウンロード成功の通知
+    showDownloadSuccess('sitest-replacer.js');
+  } catch (error) {
+    console.error('Download failed:', error);
+    alert('ファイルのダウンロードに失敗しました。');
+  }
+}
+
+// グローバルスコープに関数を登録
+window.downloadSiTestReplacer = downloadSiTestReplacer;
+window.downloadFile = downloadFile;
+window.showDownloadSuccess = showDownloadSuccess;
+window.togglePreviewMode = togglePreviewMode;
+window.getCurrentPreviewMode = getCurrentPreviewMode;
+window.updateModeIndicator = updateModeIndicator;
+
+// ダウンロードボタンのイベントリスナー設定
+document.addEventListener('DOMContentLoaded', function () {
+  const downloadBtn = document.getElementById('downloadBtn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', downloadSiTestReplacer);
+  }
+
+  // プレビューモード状態表示を初期化
+  updateModeIndicator();
+  
+  // プレビューモード切り替えボタンの状態を更新
+  const isPreviewMode = getCurrentPreviewMode();
+  const enableBtn = document.getElementById('enablePreviewBtn');
+  const disableBtn = document.getElementById('disablePreviewBtn');
+  
+  if (isPreviewMode) {
+    // プレビューモード中は有効化ボタンを無効に
+    if (enableBtn) {
+      enableBtn.disabled = true;
+      enableBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      enableBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-6 h-6 mr-3 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          <div>
+            <div class="text-lg">✅ プレビューモード有効</div>
+            <div class="text-sm opacity-70">SiTest納品作業中</div>
+          </div>
+        </div>
+      `;
+    }
+  } else {
+    // 通常モード中は無効化ボタンを無効に
+    if (disableBtn) {
+      disableBtn.disabled = true;
+      disableBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      disableBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-6 h-6 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          <div>
+            <div class="text-lg">✅ 通常モード</div>
+            <div class="text-sm opacity-70">開発・検証作業中</div>
+          </div>
+        </div>
+      `;
+    }
+  }
+});
+
+function downloadFile(filename, content, mimeType) {
+  const blob = new Blob([content], {
+    type: mimeType
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function showDownloadSuccess(filename) {
+  // 成功通知を表示
+  const notification = document.createElement('div');
+  notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300';
+  notification.innerHTML = `
+  <div class="flex items-center">
+    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+    </svg>
+    <div>
+      <div class="font-semibold">ダウンロード完了</div>
+      <div class="text-sm opacity-90">\${filename}</div>
+    </div>
+  </div>
+  `;
+
+  document.body.appendChild(notification);
+
+  // アニメーション
+  setTimeout(() => {
+    notification.style.transform = 'translateX(0)';
+  }, 100);
+
+  // 3秒後に非表示
+  setTimeout(() => {
+    notification.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 3000);
+}
+</script>
+</body>
+</html>
